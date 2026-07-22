@@ -1,0 +1,6 @@
+{
+  "name": "SkyHook Yard Logistics",
+  "description": "Real-time industrial yard logistics and rebar fabrication tracking system for Simcote Manufacturing with Gemini AI Co-Pilot.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
