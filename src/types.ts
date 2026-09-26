@@ -18,7 +18,7 @@ export interface Bundle {
   pieces: number;
   status: BundleStatus;
   location: string; // e.g. Rack J-04, Coat-Station, Door-1, Bender-New-Robo
-  specification: 'ASTM_A775' | 'ASTM_A934' | 'BLACK_CARBON';
+  specification: 'ASTM_A775' | 'ASTM_A934' | 'ASTM_A615'; // A615 = uncoated black bar
   shippingDate: string; // ISO date
   stagedAt?: string; // ISO timestamp
   door?: string;

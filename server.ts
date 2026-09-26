@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import { Bundle, Job, Operator, Exception, ShiftMessage, ActivityEvent, TrailerSize } from './src/types';
 import { INITIAL_BUNDLES, INITIAL_JOBS, INITIAL_OPERATORS, INITIAL_EXCEPTIONS, INITIAL_SHIFT_MESSAGES, INITIAL_ACTIVITY } from './src/seedData';
+import { WIND_LOCKOUT_MPH, gradeZoneViolation, isFirstShift, isUvHazard } from './src/yardRules';
 
 // Store state in-memory so modifications persist during runtime
 let bundles: Bundle[] = [...INITIAL_BUNDLES];
@@ -93,7 +94,8 @@ function getBackendRouteObstructions(
   zoneCapacities: Record<string, number>,
   windSpeed: number,
   ropeSway: number,
-  bundleLength: number
+  bundleLength: number,
+  movingBundleId?: string
 ): BackendObstruction[] {
   const origin = zoneCoords[originId];
   const dest = zoneCoords[destinationId];
@@ -110,7 +112,10 @@ function getBackendRouteObstructions(
 
   const obstructions: BackendObstruction[] = [];
 
-  const targetBundle = bundlesData.find(b => b.location === originId);
+  // A934 priority follows the bundle actually being carried, not whichever bundle sits first at the origin
+  const targetBundle = movingBundleId
+    ? bundlesData.find(b => b.id === movingBundleId)
+    : bundlesData.find(b => b.location === originId);
   const isA934Prioritized = targetBundle?.specification === 'ASTM_A934';
 
   const hazardThreshold = 0.85;
@@ -290,8 +295,8 @@ app.post('/api/ai/optimize-route', async (req, res) => {
   }
 
   try {
-    const bundle = bundles.find(b => b.tagId === bundleTagId || b.location === originId);
-    const obstructions = getBackendRouteObstructions(originId, destinationId, 'ALL', bundles, {}, 8, 3, 30);
+    const bundle = (bundleTagId && bundles.find(b => b.tagId === bundleTagId)) || bundles.find(b => b.location === originId);
+    const obstructions = getBackendRouteObstructions(originId, destinationId, 'ALL', bundles, {}, 8, 3, 30, bundle?.id);
 
     const prompt = `Analyze this gantry crane transit route for Simcote Manufacturing:
     Origin: ${originId} (${zoneCoords[originId]?.label || 'Unknown'})
@@ -365,10 +370,35 @@ app.post('/api/ai/analyze-logs', async (req, res) => {
 // --- EXISTING REST ENDPOINTS ---
 
 app.post('/api/gantry/execute-route', (req, res) => {
-  const { originId, destinationId, materialClass, windSpeed, ropeSway, bundleLength, operatorName } = req.body;
+  const { originId, destinationId, bundleId, materialClass, windSpeed, ropeSway, bundleLength, operatorName } = req.body;
   if (!originId || !destinationId) {
     res.status(400).json({ error: 'Origin and destination sector IDs are required.' });
     return;
+  }
+  if (!zoneCoords[originId] || !zoneCoords[destinationId]) {
+    res.status(400).json({ error: 'Origin and destination must be zones on the yard map.' });
+    return;
+  }
+  if (originId === destinationId) {
+    res.status(400).json({ error: 'Origin and destination are the same zone.' });
+    return;
+  }
+
+  if (windSpeed !== undefined && Number(windSpeed) >= WIND_LOCKOUT_MPH) {
+    res.status(400).json({ error: `WIND LOCKOUT: Reported wind of ${Number(windSpeed)} mph is at or above the ${WIND_LOCKOUT_MPH} mph limit for outdoor gantry travel.` });
+    return;
+  }
+
+  // The bundle being carried: the one the operator picked, or the first bundle resting at the origin
+  let targetBundle: Bundle | undefined;
+  if (bundleId) {
+    targetBundle = bundles.find(b => b.id === bundleId);
+    if (!targetBundle || targetBundle.location !== originId) {
+      res.status(400).json({ error: `Bundle ${bundleId} is not at ${originId}.` });
+      return;
+    }
+  } else {
+    targetBundle = bundles.find(b => b.location === originId);
   }
 
   const obstructions = getBackendRouteObstructions(
@@ -379,7 +409,8 @@ app.post('/api/gantry/execute-route', (req, res) => {
     {},
     windSpeed || 8,
     ropeSway || 3,
-    bundleLength || 30
+    bundleLength || 30,
+    targetBundle?.id
   );
 
   const criticalIssues = obstructions.filter(obs => obs.type === 'CRITICAL');
@@ -390,8 +421,20 @@ app.post('/api/gantry/execute-route', (req, res) => {
     return;
   }
 
-  const targetBundle = bundles.find(b => b.location === originId);
   if (targetBundle) {
+    if (targetBundle.status === 'REJECTED') {
+      res.status(400).json({ error: `CRITICAL: Bundle ${targetBundle.tagId} failed its coating QC audit and is locked in REJECTED status. Crane movement is prohibited until engineering signs off.` });
+      return;
+    }
+    if (destinationId.startsWith('Crane-')) {
+      res.status(400).json({ error: 'A gantry position is not a place to set a bundle down.' });
+      return;
+    }
+    const zoneError = gradeZoneViolation(targetBundle.grade, destinationId);
+    if (zoneError) {
+      res.status(400).json({ error: zoneError });
+      return;
+    }
     const existingBundles = bundles.filter(b => b.location === destinationId && b.id !== targetBundle.id);
     if (existingBundles.length > 0) {
       const newShipping = new Date(targetBundle.shippingDate).getTime();
@@ -425,7 +468,7 @@ app.post('/api/gantry/execute-route', (req, res) => {
       'GANTRY_MOVE',
       oldLoc,
       destinationId,
-      `Operational route executed successfully. Dynamic safety buffer cleared.`
+      `Operational route executed successfully.${windSpeed !== undefined ? ` Reported wind ${Number(windSpeed)} mph, rope sway ${Number(ropeSway ?? 0)}°.` : ''}`
     );
 
     if (targetBundle.status === 'LOADED') {
@@ -581,8 +624,9 @@ app.post('/api/bundles/:bundleId/stage', (req, res) => {
     return;
   }
 
-  if (bundle.grade === 'Black' && location !== 'Raw-SW' && location !== 'Coat-Station' && !location.includes('Shear') && !location.includes('Bender') && !location.includes('Door-7') && !location.includes('Door-8') && !location.includes('Rack J-19') && !location.includes('Rack J-20') && !location.includes('Rack J-21') && !location.includes('Rack J-22') && !location.includes('Rack J-23') && !location.includes('Rack J-24') && !location.includes('Rack J-25') && !location.includes('Rack L-6') && !location.includes('Rack L-7') && !location.includes('Rack L-8') && !location.includes('Rack L-9') && !location.includes('Rack L-10')) {
-    res.status(400).json({ error: 'CRITICAL: Black (non-epoxy) bar is SW-only. Cannot stage in North/East/SE areas.' });
+  const zoneError = gradeZoneViolation(bundle.grade, location || 'Coat-Station');
+  if (zoneError) {
+    res.status(400).json({ error: zoneError });
     return;
   }
 
@@ -628,27 +672,20 @@ app.post('/api/bundles/:bundleId/drop', (req, res) => {
     return;
   }
 
-  if (bundle.grade === 'Black') {
-    const isSwArea = location.includes('Door-7') || location.includes('Door-8') ||
-                     location.includes('Rack J-19') || location.includes('Rack J-20') ||
-                     location.includes('Rack J-21') || location.includes('Rack J-22') ||
-                     location.includes('Rack J-23') || location.includes('Rack J-24') ||
-                     location.includes('Rack J-25') || location.includes('Rack L-6') ||
-                     location.includes('Rack L-7') || location.includes('Rack L-8') ||
-                     location.includes('Rack L-9') || location.includes('Rack L-10') ||
-                     location === 'Raw-SW';
-    if (!isSwArea) {
-      res.status(400).json({ error: 'CRITICAL: Black (non-epoxy) bar cannot be dropped outside the SW zone.' });
-      return;
-    }
+  if (typeof location !== 'string' || !location || location.startsWith('Crane-')) {
+    res.status(400).json({ error: 'Specify a valid drop location.' });
+    return;
+  }
+  if (bundle.status === 'REJECTED') {
+    res.status(400).json({ error: `CRITICAL: Bundle ${bundle.tagId} failed its coating QC audit and is locked in REJECTED status. Crane movement is prohibited until engineering signs off.` });
+    return;
   }
 
-  if (bundle.grade === 'Epoxy') {
-    const isBlackRack = /Rack\s+J-(19|20|21|22|23|24|25)/.test(location) || /Rack\s+L-(6|7|8|9|10)/.test(location);
-    if (isBlackRack) {
-      res.status(400).json({ error: 'CRITICAL: Epoxy bar cannot be stored in Black-bar SW racks.' });
-      return;
-    }
+  // Black bar stays SW; epoxy stays out of black-bar racks and SW shipping doors
+  const zoneError = gradeZoneViolation(bundle.grade, location);
+  if (zoneError) {
+    res.status(400).json({ error: zoneError });
+    return;
   }
 
   const existingBundles = bundles.filter(b => b.location === location && b.id !== bundle.id);
@@ -839,12 +876,6 @@ app.post('/api/bundles/bulk-action', (req, res) => {
   }
 });
 
-function isOutdoorZone(zoneId: string): boolean {
-  if (!zoneId) return false;
-  const zid = zoneId.toLowerCase();
-  return zid.includes('rack') || zid.includes('door') || zid.includes('north-end') || zid.includes('stock') || zid.includes('raw') || zid.includes('crane');
-}
-
 app.get('/api/dashboard', (req, res) => {
   const bendingCount = bundles.filter(b => b.status === 'BENDING').length;
   const totalActiveJobs = jobs.filter(j => j.completedBundles < j.totalBundles).length;
@@ -853,20 +884,14 @@ app.get('/api/dashboard', (req, res) => {
   const rackedCount = bundles.filter(b => b.status === 'RACKED').length;
   const rejectedCount = bundles.filter(b => b.status === 'REJECTED').length;
 
-  const uvHazardsCount = bundles.filter(b => {
-    if (b.grade !== 'Epoxy' || !b.stagedAt) return false;
-    if (!isOutdoorZone(b.location)) return false;
-    const days = (Date.now() - new Date(b.stagedAt).getTime()) / (1000 * 60 * 60 * 24);
-    return days >= 25;
-  }).length;
+  const uvHazardsCount = bundles.filter(b => isUvHazard(b)).length;
 
   let firstShiftWeight = 0;
   let secondShiftWeight = 0;
 
   bundles.filter(b => b.status === 'LOADED').forEach(b => {
-    const date = new Date(b.updatedAt);
-    const hour = date.getUTCHours() + date.getUTCMinutes() / 60;
-    if (hour >= 6 && hour < 16.5) {
+    // Shifts are in plant time (6:00 AM to 4:30 PM is first shift), not UTC
+    if (isFirstShift(b.updatedAt)) {
       firstShiftWeight += b.weight;
     } else {
       secondShiftWeight += b.weight;

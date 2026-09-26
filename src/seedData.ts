@@ -73,7 +73,7 @@ export const INITIAL_BUNDLES: Bundle[] = [
     pieces: 100,
     status: 'STAGED',
     location: 'Raw-SW',
-    specification: 'BLACK_CARBON',
+    specification: 'ASTM_A615',
     shippingDate: '2026-07-24',
     stagedAt: new Date().toISOString(),
     shapeCode: '00',
@@ -93,7 +93,7 @@ export const INITIAL_BUNDLES: Bundle[] = [
     pieces: 100,
     status: 'BENDING',
     location: 'Bender-11-Bender',
-    specification: 'BLACK_CARBON',
+    specification: 'ASTM_A615',
     shippingDate: '2026-07-24',
     stagedAt: new Date().toISOString(),
     shapeCode: '51',
@@ -148,8 +148,8 @@ export const INITIAL_BUNDLES: Bundle[] = [
 export const INITIAL_JOBS: Job[] = [
   {
     id: 'JOB-8821',
-    customerName: 'Mortenson Construction',
-    projectName: 'I-94 Bridge Overpass Expansion',
+    customerName: 'Arena Partners GC',
+    projectName: 'Interstate Bridge Overpass Expansion',
     totalBundles: 3,
     completedBundles: 1,
     totalWeightLbs: 8637,
@@ -159,8 +159,8 @@ export const INITIAL_JOBS: Job[] = [
   },
   {
     id: 'JOB-8822',
-    customerName: 'Kraus-Anderson',
-    projectName: 'Saint Paul Water Treatment Vaults',
+    customerName: 'Northfield Civil Group',
+    projectName: 'Water Treatment Vaults',
     totalBundles: 1,
     completedBundles: 0,
     totalWeightLbs: 16020,
@@ -170,8 +170,8 @@ export const INITIAL_JOBS: Job[] = [
   },
   {
     id: 'JOB-8823',
-    customerName: 'Ames Construction',
-    projectName: 'MnDOT Rail Terminal Abutments',
+    customerName: 'Prairie Rail Constructors',
+    projectName: 'Rail Terminal Abutments',
     totalBundles: 2,
     completedBundles: 0,
     totalWeightLbs: 63756,
@@ -181,8 +181,8 @@ export const INITIAL_JOBS: Job[] = [
   },
   {
     id: 'JOB-8824',
-    customerName: 'McGough Companies',
-    projectName: 'U of M Medical Tower Substructure',
+    customerName: 'Summit Health Constructors',
+    projectName: 'Medical Tower Substructure',
     totalBundles: 1,
     completedBundles: 0,
     totalWeightLbs: 6008,
@@ -226,7 +226,7 @@ export const INITIAL_SHIFT_MESSAGES: ShiftMessage[] = [
   {
     id: 'SM-1',
     sender: 'Dave Miller (1st Shift Supervisor)',
-    content: 'All Northwest gantry hoist cables inspected and lubricated. High volume of #5 epoxy bar arriving for Mortenson I-94 job at 11:00 AM.',
+    content: 'All Northwest gantry hoist cables inspected and lubricated. High volume of #5 epoxy bar arriving for the Arena Partners bridge job at 11:00 AM.',
     timestamp: '2026-07-22T06:30:00Z',
     shift: '1st Shift'
   },
@@ -248,7 +248,7 @@ export const INITIAL_ACTIVITY: ActivityEvent[] = [
     action: 'FORCED_LOAD',
     fromLocation: 'Coat-Station',
     toLocation: 'Door-1',
-    details: 'Loaded onto Flatbed trailer for Mortenson Bridge Overpass order.'
+    details: 'Loaded onto Flatbed trailer for the Arena Partners bridge overpass order.'
   },
   {
     id: 'AC-2',
