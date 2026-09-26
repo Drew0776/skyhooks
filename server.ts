@@ -2,17 +2,35 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import dotenv from 'dotenv';
 import { Bundle, Job, Operator, Exception, ShiftMessage, ActivityEvent, TrailerSize } from './src/types';
 import { INITIAL_BUNDLES, INITIAL_JOBS, INITIAL_OPERATORS, INITIAL_EXCEPTIONS, INITIAL_SHIFT_MESSAGES, INITIAL_ACTIVITY } from './src/seedData';
 import { WIND_LOCKOUT_MPH, gradeZoneViolation, isFirstShift, isUvHazard } from './src/yardRules';
 
 // Store state in-memory so modifications persist during runtime
-let bundles: Bundle[] = [...INITIAL_BUNDLES];
-let jobs: Job[] = [...INITIAL_JOBS];
-let operators: Operator[] = [...INITIAL_OPERATORS];
-let exceptions: Exception[] = [...INITIAL_EXCEPTIONS];
-let shiftMessages: ShiftMessage[] = [...INITIAL_SHIFT_MESSAGES];
-let activityEvents: ActivityEvent[] = [...INITIAL_ACTIVITY];
+// Deep copies, so runtime changes never mutate the seed data and the yard can be reset
+let bundles: Bundle[] = structuredClone(INITIAL_BUNDLES);
+let jobs: Job[] = structuredClone(INITIAL_JOBS);
+let operators: Operator[] = structuredClone(INITIAL_OPERATORS);
+let exceptions: Exception[] = structuredClone(INITIAL_EXCEPTIONS);
+let shiftMessages: ShiftMessage[] = structuredClone(INITIAL_SHIFT_MESSAGES);
+let activityEvents: ActivityEvent[] = structuredClone(INITIAL_ACTIVITY);
+
+/** Restores the yard to the seed data (used by the API tests). */
+export function resetYardState() {
+  bundles = structuredClone(INITIAL_BUNDLES);
+  jobs = structuredClone(INITIAL_JOBS);
+  operators = structuredClone(INITIAL_OPERATORS);
+  exceptions = structuredClone(INITIAL_EXCEPTIONS);
+  shiftMessages = structuredClone(INITIAL_SHIFT_MESSAGES);
+  activityEvents = structuredClone(INITIAL_ACTIVITY);
+}
+
+// Keep the in-memory activity log bounded on long-running servers
+const MAX_ACTIVITY_EVENTS = 500;
+
+// Load GEMINI_API_KEY and friends from .env.local / .env for local runs (existing env vars win)
+dotenv.config({ path: ['.env.local', '.env'], quiet: true });
 
 // Initialize Google GenAI Client with User-Agent header per AI Studio telemetry guidelines
 const apiKey = process.env.GEMINI_API_KEY || '';
@@ -183,9 +201,13 @@ function getBackendRouteObstructions(
 }
 
 // Helper to log dynamic activity events
+// Unique ids even when several records are created in the same millisecond
+let idCounter = 0;
+const nextId = (prefix: string) => `${prefix}-${Date.now()}-${++idCounter}`;
+
 function logActivity(tagId: string, operatorName: string, action: string, fromLoc: string, toLoc: string, details?: string) {
   const newEvent: ActivityEvent = {
-    id: `AC-${Date.now()}`,
+    id: nextId('AC'),
     timestamp: new Date().toISOString(),
     tagId,
     operatorName,
@@ -195,6 +217,7 @@ function logActivity(tagId: string, operatorName: string, action: string, fromLo
     details
   };
   activityEvents.unshift(newEvent);
+  if (activityEvents.length > MAX_ACTIVITY_EVENTS) activityEvents.length = MAX_ACTIVITY_EVENTS;
   return newEvent;
 }
 
@@ -218,15 +241,27 @@ app.get('/api/updates', (req, res) => {
   sseClients.push(res);
   res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
 
+  // Comment lines every 25 s keep proxies and load balancers from closing an idle stream
+  const heartbeat = setInterval(() => res.write(': ping\n\n'), 25000);
+
   req.on('close', () => {
+    clearInterval(heartbeat);
     sseClients = sseClients.filter(c => c !== res);
   });
 });
 
 // --- GEMINI AI ENDPOINTS ---
 
+/** Answers 503 with setup instructions when no Gemini API key is configured. */
+function requireAi(res: express.Response): boolean {
+  if (apiKey) return true;
+  res.status(503).json({ error: 'The AI co-pilot is not configured. Set GEMINI_API_KEY on the server to enable it.' });
+  return false;
+}
+
 // 1. Natural Language Yard Query Endpoint
 app.post('/api/ai/query', async (req, res) => {
+  if (!requireAi(res)) return;
   const { prompt } = req.body;
   if (!prompt || typeof prompt !== 'string') {
     res.status(400).json({ error: 'A valid text prompt is required.' });
@@ -288,6 +323,7 @@ app.post('/api/ai/query', async (req, res) => {
 
 // 2. AI Automated Route Optimization Endpoint
 app.post('/api/ai/optimize-route', async (req, res) => {
+  if (!requireAi(res)) return;
   const { originId, destinationId, bundleTagId } = req.body;
   if (!originId || !destinationId) {
     res.status(400).json({ error: 'Origin and destination sector IDs are required.' });
@@ -330,6 +366,7 @@ app.post('/api/ai/optimize-route', async (req, res) => {
 
 // 3. AI Shift Log Anomaly & Maintenance Prediction Endpoint
 app.post('/api/ai/analyze-logs', async (req, res) => {
+  if (!requireAi(res)) return;
   try {
     const analysisPayload = {
       recentActivities: activityEvents.slice(0, 15),
@@ -558,7 +595,7 @@ app.post('/api/exceptions', (req, res) => {
   }
 
   const newEx: Exception = {
-    id: `EX-${Date.now()}`,
+    id: nextId('EX'),
     timestamp: new Date().toISOString(),
     tagId,
     operatorName,
@@ -604,7 +641,7 @@ app.post('/api/shift-messages', (req, res) => {
     return;
   }
   const newMessage: ShiftMessage = {
-    id: `SM-${Date.now()}`,
+    id: nextId('SM'),
     sender,
     content,
     timestamp: new Date().toISOString(),
@@ -914,6 +951,23 @@ app.get('/api/dashboard', (req, res) => {
   });
 });
 
+// Unknown API routes answer in JSON instead of falling through to the web app
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: `No API route for ${req.method} ${req.originalUrl}.` });
+});
+
+// Malformed JSON bodies and unexpected errors answer in JSON
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err?.type === 'entity.parse.failed') {
+    res.status(400).json({ error: 'Request body is not valid JSON.' });
+    return;
+  }
+  console.error('Unhandled server error:', err);
+  res.status(500).json({ error: 'Unexpected server error.' });
+});
+
+export { app };
+
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -934,4 +988,7 @@ async function startServer() {
   });
 }
 
-startServer();
+// Tests import the app without opening a port
+if (process.env.SKYHOOK_NO_LISTEN !== '1') {
+  startServer();
+}
