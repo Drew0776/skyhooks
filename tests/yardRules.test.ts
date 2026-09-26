@@ -1,0 +1,37 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { gradeZoneViolation, isFirstShift, isUvHazard, plantLocalHour, WIND_LOCKOUT_MPH } from '../src/yardRules';
+
+const DAY = 24 * 60 * 60 * 1000;
+const NOW = Date.parse('2026-06-15T12:00:00Z');
+
+test('black bar stays in the SW zone but may visit processing stations', () => {
+  assert.equal(gradeZoneViolation('Black', 'Rack J-19'), null);
+  assert.equal(gradeZoneViolation('Black', 'Door-7'), null);
+  assert.equal(gradeZoneViolation('Black', 'Bender-11-Bender'), null);
+  assert.match(gradeZoneViolation('Black', 'Door-1') ?? '', /SW-only/);
+});
+
+test('epoxy stays out of black-bar racks and SW shipping doors', () => {
+  assert.equal(gradeZoneViolation('Epoxy', 'Rack K-1'), null);
+  assert.match(gradeZoneViolation('Epoxy', 'Rack J-20') ?? '', /Black-bar SW racks/);
+  assert.match(gradeZoneViolation('Epoxy', 'Door-8') ?? '', /NW\/NE doors/);
+});
+
+test('UV warning needs epoxy, an outdoor zone and 25+ days', () => {
+  const old = new Date(NOW - 26 * DAY).toISOString();
+  assert.ok(isUvHazard({ grade: 'Epoxy', location: 'Rack J-04', stagedAt: old }, NOW));
+  assert.ok(!isUvHazard({ grade: 'Epoxy', location: 'Coat-Station', stagedAt: old }, NOW), 'indoors');
+  assert.ok(!isUvHazard({ grade: 'Black', location: 'Rack J-19', stagedAt: old }, NOW));
+  assert.ok(!isUvHazard({ grade: 'Epoxy', location: 'Rack J-04', stagedAt: new Date(NOW - 3 * DAY).toISOString() }, NOW));
+});
+
+test('shifts use plant time, not UTC', () => {
+  assert.equal(plantLocalHour('2026-05-24T14:30:00Z'), 9.5);
+  assert.ok(isFirstShift('2026-05-24T21:00:00Z'), '4:00 PM CDT is first shift');
+  assert.ok(!isFirstShift('2026-05-24T08:00:00Z'), '3:00 AM CDT is second shift');
+});
+
+test('wind lockout threshold matches the crane cab label', () => {
+  assert.equal(WIND_LOCKOUT_MPH, 25);
+});
