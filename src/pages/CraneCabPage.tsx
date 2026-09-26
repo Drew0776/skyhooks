@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { WIND_LOCKOUT_MPH, formatShipDate, gradeZoneViolation, slottingConflict, slottingViolationMessage } from '../yardRules';
+import { WIND_LOCKOUT_MPH, formatShipDate, gradePlacementViolation, slottingConflict, slottingViolationMessage } from '../yardRules';
 import { useApp } from '../context/AppContext';
 import { HardHat, Compass, Anchor, AlertTriangle, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
 
@@ -20,7 +20,7 @@ export default function CraneCabPage() {
   const slotConflict = targetBundle ? slottingConflict(targetBundle, destSector, bundles) : undefined;
   // The same zoning and ships-first checks the server runs, shown before the operator commits
   const placementIssue = targetBundle
-    ? gradeZoneViolation(targetBundle.grade, destSector) ?? (slotConflict ? slottingViolationMessage(targetBundle, slotConflict, destSector) : null)
+    ? gradePlacementViolation(targetBundle, destSector, bundles) ?? (slotConflict ? slottingViolationMessage(targetBundle, slotConflict, destSector) : null)
     : null;
 
   const handleExecuteRoute = async () => {

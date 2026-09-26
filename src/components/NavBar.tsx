@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useApp } from '../context/AppContext';
 import RoleSwitcher from './RoleSwitcher';
@@ -20,6 +20,12 @@ export default function NavBar() {
   ];
 
   const visibleItems = navItems.filter(item => item.roles.includes(currentRole));
+
+  // Name the browser tab after the screen, so tabs, history and screen readers can tell screens apart
+  useEffect(() => {
+    const screen = navItems.find(item => item.href === location)?.label ?? 'Page not found';
+    document.title = `${screen} · SkyHook Yard Logistics`;
+  }, [location]);
 
   return (
     <>
@@ -86,9 +92,10 @@ export default function NavBar() {
             <button
               onClick={() => setIsAiModalOpen(true)}
               id="ai-copilot-launch-btn"
+              aria-label="AI co-pilot"
               className="inline-flex items-center gap-1.5 whitespace-nowrap bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer shadow-xs hover:border-amber-400"
             >
-              <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+              <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" aria-hidden="true" />
               <span className="hidden sm:inline">AI CO-PILOT</span>
             </button>
 

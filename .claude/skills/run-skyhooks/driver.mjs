@@ -16,6 +16,9 @@ const BASE = `http://localhost:${PORT}`;
 const SHOTS = process.env.SHOTS_DIR || '/tmp/shots/skyhooks';
 const LOG = '/tmp/skyhooks.log';
 
+// Piping output into `head` closes stdout early; exit quietly instead of crashing on EPIPE
+process.stdout.on('error', e => { if (e.code === 'EPIPE') process.exit(0); throw e; });
+
 const [cmd, ...args] = process.argv.slice(2);
 const flag = (name, fallback) => {
   const i = args.indexOf(`--${name}`);

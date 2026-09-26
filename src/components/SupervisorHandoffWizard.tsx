@@ -110,6 +110,7 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
                   id="handoff-supervisor"
                   type="text"
                   value={supervisorName}
+                  maxLength={50}
                   onChange={e => setSupervisorName(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-xs text-slate-200"
                 />
@@ -134,6 +135,7 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
                   id="handoff-notes"
                   rows={4}
                   value={handoffNotes}
+                  maxLength={950}
                   onChange={e => setHandoffNotes(e.target.value)}
                   placeholder="e.g., Northwest gantry lube complete. 20 tons #5 epoxy staged at Shear Center for the bridge overpass job..."
                   className="w-full bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs text-slate-200 font-sans focus:border-amber-500 focus:outline-hidden"

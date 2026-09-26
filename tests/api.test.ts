@@ -135,3 +135,77 @@ test('the co-pilot brief carries the plant clock and the enforced yard rules', (
   assert.match(brief, /ASTM D3963/);
   assert.match(brief, /Ships-first stacking/);
 });
+
+test('request bodies must carry text where the screens expect text', async () => {
+  // One exception with an object for a name used to crash every open screen
+  const objectTag = await call('POST', '/api/exceptions', { tagId: {}, operatorName: 'QC', type: 'Misplaced Bar', description: 'x' });
+  assert.equal(objectTag.status, 400);
+  assert.match(objectTag.json.error, /tagId must be text/);
+
+  const numberName = await call('POST', '/api/shift-messages', { sender: 5, content: 'hi', shift: '1st Shift' });
+  assert.equal(numberName.status, 400);
+
+  const tooLong = await call('POST', '/api/exceptions', { tagId: 'b-1', operatorName: 'QC', type: 'Misplaced Bar', description: 'x'.repeat(1001) });
+  assert.equal(tooLong.status, 400);
+  assert.match(tooLong.json.error, /1,000 characters/);
+
+  const notAnObject = await call('POST', '/api/bundles/bulk-action', [1, 2, 3]);
+  assert.equal(notAnObject.status, 400);
+
+  const oversized = await call('POST', '/api/shift-messages', { sender: 'x', content: 'x'.repeat(200_000), shift: '1st Shift' });
+  assert.equal(oversized.status, 413);
+
+  const blank = await call('POST', '/api/exceptions', { tagId: '   ', operatorName: 'QC', type: 'Misplaced Bar', description: 'x' });
+  assert.equal(blank.status, 400, 'a blank-but-spaces tag counts as missing');
+});
+
+test('a wind speed that is not a number cannot skip the wind lockout', async () => {
+  const r = await call('POST', '/api/gantry/execute-route', { originId: 'Coat-Station', destinationId: 'Door-2', bundleId: 'b-3', windSpeed: 'high' });
+  assert.equal(r.status, 400);
+  assert.match(r.json.error, /windSpeed must be a number/);
+});
+
+test('resolving an exception keeps who resolved it and their notes', async () => {
+  const r = await call('POST', '/api/exceptions/EX-101/resolve', { operatorName: 'QC Lead', resolutionNotes: 'Tarped with opaque cover.' });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.status, 'RESOLVED');
+  assert.equal(r.json.resolvedBy, 'QC Lead');
+  assert.equal(r.json.resolutionNotes, 'Tarped with opaque cover.');
+});
+
+test('a coated epoxy bundle cannot be set down in Raw-SW black-bar stock', async () => {
+  const r = await call('POST', '/api/bundles/b-1/drop', { location: 'Raw-SW' });
+  assert.equal(r.status, 400);
+  assert.match(r.json.error, /never go back into Raw-SW/);
+});
+
+test('every move goes to a real place of the right kind, and never mixes black with coated', async () => {
+  for (const [path, body] of [
+    ['/api/bundles/b-1/pickup', { craneId: 'Door-8' }],
+    ['/api/bundles/b-7/stage', { location: 'Moon' }],
+    ['/api/bundles/b-2/force-load', { door: 'Rack J-20' }],
+    ['/api/bundles/b-6/send-to-bender', { benderId: 'Door-7' }],
+    ['/api/bundles/b-1/drop', { location: 'Moon' }]
+  ] as const) {
+    const r = await call('POST', path, body);
+    assert.equal(r.status, 400, path);
+  }
+  // Bender-11-Bender holds black TG-302 (b-5); coated epoxy can't join it
+  const mixed = await call('POST', '/api/bundles/b-6/send-to-bender', { benderId: 'Bender-11-Bender' });
+  assert.equal(mixed.status, 400);
+  assert.match(mixed.json.error, /never touch/);
+});
+
+test('a QC-rejected bundle cannot be moved by any route', async () => {
+  await call('POST', '/api/exceptions', { tagId: 'TG-401', operatorName: 'QC', type: 'Quality Audit', description: 'Scraped', qualityAudit: { coatingDamagePct: 4, damagedFootSection: 'ft 2-3' } });
+  for (const [path, body] of [
+    ['/api/bundles/b-7/stage', { location: 'Coat-Station' }],
+    ['/api/bundles/b-7/pickup', { craneId: 'Crane-NE' }],
+    ['/api/bundles/b-7/send-to-bender', { benderId: 'Bender-New-Robo' }],
+    ['/api/bundles/b-7/force-load', { door: 'Door-2' }]
+  ] as const) {
+    const r = await call('POST', path, body);
+    assert.equal(r.status, 400, path);
+    assert.match(r.json.error, /REJECTED/, path);
+  }
+});
