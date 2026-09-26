@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Bot, Sparkles, Send, MapPin, AlertTriangle, ArrowRight, Loader2, X, RefreshCw } from 'lucide-react';
+import AiText from './AiText';
 
 interface AiAssistantModalProps {
   onClose: () => void;
@@ -9,11 +10,16 @@ interface AiAssistantModalProps {
 
 export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultDest = '' }: AiAssistantModalProps) {
   const [activeTab, setActiveTab] = useState<'chat' | 'route' | 'anomalies'>('chat');
+  // Model name and setup state from the server, so the badge matches GEMINI_MODEL
+  const [aiStatus, setAiStatus] = useState<{ configured: boolean; model: string } | null>(null);
+  useEffect(() => {
+    fetch('/api/ai/status').then(r => (r.ok ? r.json() : null)).then(setAiStatus).catch(() => {});
+  }, []);
 
   // Query Chat States
   const [queryPrompt, setQueryPrompt] = useState('');
   const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([
-    { role: 'assistant', text: 'Hello Operator! I am SkyHook AI powered by Gemini 3.6 Flash. Ask me anything about bundle locations, ASTM specs, active jobs, or shift handoffs.' }
+    { role: 'assistant', text: 'Hello Operator! I am SkyHook AI, powered by Gemini. Ask me anything about bundle locations, ASTM specs, active jobs, or shift handoffs.' }
   ]);
   const [isQuerying, setIsQuerying] = useState(false);
 
@@ -119,14 +125,14 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
               <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                 SkyHook AI Co-Pilot
                 <span className="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-normal">
-                  Gemini 3.6 Flash
+                  {aiStatus ? (aiStatus.configured ? aiStatus.model : 'Not configured') : 'Gemini'}
                 </span>
               </h2>
               <p className="text-[10px] text-slate-400 font-sans">Industrial yard logistics & safety intelligence model</p>
             </div>
           </div>
-          <button onClick={onClose} id="ai-modal-close-button" className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
-            <X className="h-5 w-5" />
+          <button onClick={onClose} id="ai-modal-close-button" aria-label="Close co-pilot" className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -166,7 +172,7 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
           {/* TAB 1: YARD ASSISTANT CHAT */}
           {activeTab === 'chat' && (
             <div className="flex flex-col h-[380px]">
-              <div className="flex-1 overflow-y-auto space-y-3 pr-2 mb-3">
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2 mb-3" role="log" aria-live="polite" aria-label="Co-pilot conversation" tabIndex={0}>
                 {chatHistory.map((msg, idx) => (
                   <div key={idx} className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {msg.role === 'assistant' && (
@@ -174,12 +180,12 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
                         <Bot className="h-4 w-4" />
                       </div>
                     )}
-                    <div className={`p-3 rounded-xl max-w-[80%] text-xs font-sans whitespace-pre-wrap leading-relaxed ${
+                    <div className={`p-3 rounded-xl max-w-[80%] text-xs font-sans leading-relaxed ${
                       msg.role === 'user'
-                        ? 'bg-amber-500/20 border border-amber-500/30 text-slate-100 font-mono'
+                        ? 'bg-amber-500/20 border border-amber-500/30 text-slate-100 font-mono whitespace-pre-wrap'
                         : 'bg-slate-900 border border-slate-800 text-slate-300'
                     }`}>
-                      {msg.text}
+                      {msg.role === 'assistant' ? <AiText text={msg.text} /> : msg.text}
                     </div>
                   </div>
                 ))}
@@ -196,6 +202,8 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
                   type="text"
                   value={queryPrompt}
                   onChange={(e) => setQueryPrompt(e.target.value)}
+                  maxLength={2000}
+                  aria-label="Ask the co-pilot"
                   placeholder="e.g. Which bundles are currently staged at Shear North?"
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-amber-500 focus:outline-hidden"
                 />
@@ -216,8 +224,9 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[10px] uppercase text-slate-400 block mb-1">Origin Zone</label>
+                  <label htmlFor="ai-route-origin" className="text-[10px] uppercase text-slate-400 block mb-1">Origin Zone</label>
                   <input
+                    id="ai-route-origin"
                     type="text"
                     value={originId}
                     onChange={(e) => setOriginId(e.target.value)}
@@ -225,8 +234,9 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase text-slate-400 block mb-1">Destination Zone</label>
+                  <label htmlFor="ai-route-dest" className="text-[10px] uppercase text-slate-400 block mb-1">Destination Zone</label>
                   <input
+                    id="ai-route-dest"
                     type="text"
                     value={destinationId}
                     onChange={(e) => setDestinationId(e.target.value)}
@@ -234,8 +244,9 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase text-slate-400 block mb-1">Bundle Tag</label>
+                  <label htmlFor="ai-route-bundle" className="text-[10px] uppercase text-slate-400 block mb-1">Bundle Tag</label>
                   <input
+                    id="ai-route-bundle"
                     type="text"
                     value={bundleTagId}
                     onChange={(e) => setBundleTagId(e.target.value)}
@@ -254,8 +265,8 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
               </button>
 
               {routeResult && (
-                <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl text-xs font-sans text-slate-300 leading-relaxed whitespace-pre-wrap max-h-[250px] overflow-y-auto">
-                  {routeResult}
+                <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl text-xs font-sans text-slate-300 leading-relaxed max-h-[250px] overflow-y-auto" role="region" aria-live="polite" aria-label="Route analysis" tabIndex={0}>
+                  <AiText text={routeResult} />
                 </div>
               )}
             </div>
@@ -280,8 +291,8 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
               </div>
 
               {logAnalysis ? (
-                <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl text-xs font-sans text-slate-300 leading-relaxed whitespace-pre-wrap max-h-[280px] overflow-y-auto">
-                  {logAnalysis}
+                <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl text-xs font-sans text-slate-300 leading-relaxed max-h-[280px] overflow-y-auto" role="region" aria-live="polite" aria-label="Shift log analysis" tabIndex={0}>
+                  <AiText text={logAnalysis} />
                 </div>
               ) : (
                 <div className="p-8 text-center text-muted text-xs border border-dashed border-slate-800 rounded-xl">

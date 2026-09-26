@@ -6,7 +6,7 @@ import type { Server } from 'node:http';
 // Import the Express app without opening port 3000, and without a Gemini key
 process.env.SKYHOOK_NO_LISTEN = '1';
 process.env.GEMINI_API_KEY = '';
-const { app, resetYardState } = await import('../server');
+const { app, resetYardState, aiSystemInstruction } = await import('../server');
 
 let server: Server;
 let base = '';
@@ -70,6 +70,9 @@ test('AI endpoints explain that no Gemini key is configured', async () => {
     assert.equal(r.status, 503, path);
     assert.match(r.json.error, /GEMINI_API_KEY/);
   }
+  const status = await call('GET', '/api/ai/status');
+  assert.equal(status.json.configured, false);
+  assert.match(status.json.model, /^gemini-/);
 });
 
 test('dashboard metrics answer', async () => {
@@ -102,4 +105,33 @@ test('seed ship dates start today or later', async () => {
     const [y, m, d] = b.shippingDate.split('-').map(Number);
     assert.ok(new Date(y, m - 1, d) >= today, `${b.tagId} ships ${b.shippingDate}`);
   }
+});
+
+test('AI requests are validated before any Gemini call', async () => {
+  const long = await call('POST', '/api/ai/query', { prompt: 'x'.repeat(2001) });
+  assert.equal(long.status, 400);
+  assert.match(long.json.error, /2,000 characters/);
+
+  const blank = await call('POST', '/api/ai/query', { prompt: '   ' });
+  assert.equal(blank.status, 400);
+
+  const unknownZone = await call('POST', '/api/ai/optimize-route', { originId: 'Moon', destinationId: 'Door-2' });
+  assert.equal(unknownZone.status, 400);
+  assert.match(unknownZone.json.error, /Unknown yard zone: Moon/);
+});
+
+test('AI requests are rate limited per client', async () => {
+  const statuses: number[] = [];
+  for (let i = 0; i < 13; i++) statuses.push((await call('POST', '/api/ai/analyze-logs', {})).status);
+  assert.deepEqual(statuses.slice(0, 12), Array(12).fill(503));
+  assert.equal(statuses[12], 429);
+});
+
+test('the co-pilot brief carries the plant clock and the enforced yard rules', () => {
+  const brief = aiSystemInstruction(new Date('2026-09-26T15:00:00Z'));
+  assert.match(brief, /Saturday, September 26, 2026 at 10:00 AM/);
+  assert.match(brief, /first shift/);
+  assert.match(brief, /25 mph/);
+  assert.match(brief, /ASTM D3963/);
+  assert.match(brief, /Ships-first stacking/);
 });
