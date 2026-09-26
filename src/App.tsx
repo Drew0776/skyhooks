@@ -1,16 +1,25 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Route, Switch } from 'wouter';
 import { AppProvider, useApp } from './context/AppContext';
 import NavBar from './components/NavBar';
 import BundleDetailModal from './components/BundleDetailModal';
 
-import LandingPage from './pages/LandingPage';
-import DashboardPage from './pages/DashboardPage';
-import FloorTriggerPage from './pages/FloorTriggerPage';
-import CraneCabPage from './pages/CraneCabPage';
-import YardMapPage from './pages/YardMapPage';
-import JobsPage from './pages/JobsPage';
-import ExceptionsPage from './pages/ExceptionsPage';
+// Each console screen loads on demand, so the first page doesn't download every screen's code
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const FloorTriggerPage = lazy(() => import('./pages/FloorTriggerPage'));
+const CraneCabPage = lazy(() => import('./pages/CraneCabPage'));
+const YardMapPage = lazy(() => import('./pages/YardMapPage'));
+const JobsPage = lazy(() => import('./pages/JobsPage'));
+const ExceptionsPage = lazy(() => import('./pages/ExceptionsPage'));
+
+function ScreenLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[40vh] font-mono text-xs text-slate-500" role="status" aria-live="polite">
+      Loading console...
+    </div>
+  );
+}
 
 function AppContent() {
   const { selectedBundleForModal, setSelectedBundleForModal, toast } = useApp();
@@ -20,6 +29,7 @@ function AppContent() {
       <NavBar />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+        <Suspense fallback={<ScreenLoader />}>
         <Switch>
           <Route path="/" component={LandingPage} />
           <Route path="/dashboard" component={DashboardPage} />
@@ -32,6 +42,7 @@ function AppContent() {
             <LandingPage />
           </Route>
         </Switch>
+        </Suspense>
       </main>
 
       {/* Global Toast Notification */}
