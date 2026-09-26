@@ -48,3 +48,9 @@ test('ships-first stacking flags the soonest-shipping bundle it would bury', () 
 test('date-only ship dates keep their calendar day in every time zone', () => {
   assert.equal(formatShipDate('2026-07-25'), new Date(2026, 6, 25).toLocaleDateString());
 });
+
+test('coated epoxy never goes back into Raw-SW; uncoated bar waiting for the coat line may', () => {
+  assert.match(gradeZoneViolation('Epoxy', 'Raw-SW', 'COATED') ?? '', /never go back into Raw-SW/);
+  assert.match(gradeZoneViolation('Epoxy', 'Raw-SW') ?? '', /never go back into Raw-SW/, 'no status means treat it as coated');
+  assert.equal(gradeZoneViolation('Black', 'Raw-SW'), null);
+});

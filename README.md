@@ -14,7 +14,7 @@ SkyHook tracks every rebar bundle in a fabrication yard from raw stock to the tr
 
 Shared by the server and the screens in [`src/yardRules.ts`](src/yardRules.ts):
 
-- **Grade zoning.** Black (uncoated, ASTM A615) bar stays in the SW zone, and epoxy stays out of the SW black-bar racks and Doors 7–8. Shears, benders and the coat line take either grade.
+- **Grade zoning.** Black and epoxy are never mixed. Black (uncoated, ASTM A615) bar stays in the SW zone, and coated epoxy never goes into a black-bar area: Raw-SW, the SW black-bar racks or Doors 7–8. Shears, benders and the coat line take either grade.
 - **Ships-first stacking.** A bundle can't be set on a spot that holds a bundle shipping sooner.
 - **Gantry interlocks.** A parked crane on the path blocks a move. Crossing a zone at 60% of capacity forces slow mode, and 85% blocks it. ASTM A934 bundles skip slow mode.
 - **Hard stops.** QC-rejected bundles can't move, and wind of 25 mph or more locks out gantry travel.

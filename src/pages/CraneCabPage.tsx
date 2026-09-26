@@ -20,7 +20,7 @@ export default function CraneCabPage() {
   const slotConflict = targetBundle ? slottingConflict(targetBundle, destSector, bundles) : undefined;
   // The same zoning and ships-first checks the server runs, shown before the operator commits
   const placementIssue = targetBundle
-    ? gradeZoneViolation(targetBundle.grade, destSector) ?? (slotConflict ? slottingViolationMessage(targetBundle, slotConflict, destSector) : null)
+    ? gradeZoneViolation(targetBundle.grade, destSector, targetBundle.status) ?? (slotConflict ? slottingViolationMessage(targetBundle, slotConflict, destSector) : null)
     : null;
 
   const handleExecuteRoute = async () => {

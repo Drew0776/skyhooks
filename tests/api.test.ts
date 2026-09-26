@@ -172,3 +172,9 @@ test('resolving an exception keeps who resolved it and their notes', async () =>
   assert.equal(r.json.resolvedBy, 'QC Lead');
   assert.equal(r.json.resolutionNotes, 'Tarped with opaque cover.');
 });
+
+test('a coated epoxy bundle cannot be set down in Raw-SW black-bar stock', async () => {
+  const r = await call('POST', '/api/bundles/b-1/drop', { location: 'Raw-SW' });
+  assert.equal(r.status, 400);
+  assert.match(r.json.error, /never go back into Raw-SW/);
+});

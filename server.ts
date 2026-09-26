@@ -353,7 +353,8 @@ Current plant time: ${plantNow} (${PLANT_TIME_ZONE}), ${isFirstShift(now.toISOSt
 Answer only from the live yard data you are given and the yard rules below. If the data doesn't answer a question, say so instead of guessing. Don't cite ASTM requirements beyond those listed here.
 
 Yard rules, enforced by the server:
-- Grade zoning: black (uncoated, ASTM A615) bar may only be at Raw-SW, Door-7, Door-8, racks J-19 to J-25 and L-6 to L-10, or a shear, bender or the coat line. Epoxy (ASTM A775 or A934) may not be stored in racks J-19 to J-25 or L-6 to L-10, and ships only from Door-1, Door-2, Door-3 or North-End, never Door-7 or Door-8. Every other zone, Raw-SW included, takes either grade.
+- Plant flow: all bar arrives black at Raw-SW; about 98% is epoxy-coated on the coat line, then sheared, bent, loaded and shipped.
+- Grade zoning: black and epoxy are never mixed. Black (uncoated, ASTM A615) bar may only be at Raw-SW, Door-7, Door-8, racks J-19 to J-25 and L-6 to L-10, or a shear, bender or the coat line. Coated epoxy (ASTM A775 or A934) never goes into a black-bar area: not Raw-SW, not racks J-19 to J-25 or L-6 to L-10, and it ships only from Door-1, Door-2, Door-3 or North-End, never Door-7 or Door-8. Shears, benders, the coat line and the other racks, doors and staging areas take either grade.
 - Ships-first stacking: a bundle can't be set on a spot holding a bundle that ships sooner.
 - Gantry interlocks: a parked crane on the path blocks a move. Crossing a zone loaded to 60% of its limit (75,000 lb by default) forces slow mode, and 85% blocks the move. ASTM A934 bundles skip slow mode.
 - Hard stops: a bundle that fails coating QC (more than 2% damage) is REJECTED and can't move. Reported wind of ${WIND_LOCKOUT_MPH} mph or more locks out gantry travel.
@@ -462,14 +463,14 @@ app.post('/api/ai/optimize-route', async (req, res) => {
     const obstructions = getBackendRouteObstructions(originId, destinationId, 'ALL', bundles, {}, 8, 3, 30, bundle?.id);
     // The server's own verdict on the drop, so the advice can't green-light a move the interlocks refuse
     const conflict = bundle && slottingConflict(bundle, destinationId, bundles);
-    const zoneIssue = bundle && gradeZoneViolation(bundle.grade, destinationId);
+    const zoneIssue = bundle && gradeZoneViolation(bundle.grade, destinationId, bundle.status);
     const placement = !bundle ? 'Nothing is carried, so no placement checks apply.'
       : bundle.status === 'REJECTED' ? `BLOCKED: ${bundle.tagId} failed coating QC and is locked in REJECTED status.`
       : zoneIssue ?? (conflict ? slottingViolationMessage(bundle, conflict, destinationId) : 'Passes grade zoning and ships-first stacking.');
     // When the drop is refused, where the bundle could legally go instead
     const legalDrops = bundle && bundle.status !== 'REJECTED' && (zoneIssue || conflict)
       ? Object.keys(zoneCoords).filter(z => z !== originId && z !== destinationId && !z.startsWith('Crane-') &&
-          !gradeZoneViolation(bundle.grade, z) && !slottingConflict(bundle, z, bundles))
+          !gradeZoneViolation(bundle.grade, z, bundle.status) && !slottingConflict(bundle, z, bundles))
       : null;
 
     const prompt = `Review this gantry crane move.
@@ -606,7 +607,7 @@ app.post('/api/gantry/execute-route', (req, res) => {
       res.status(400).json({ error: 'A gantry position is not a place to set a bundle down.' });
       return;
     }
-    const zoneError = gradeZoneViolation(targetBundle.grade, destinationId);
+    const zoneError = gradeZoneViolation(targetBundle.grade, destinationId, targetBundle.status);
     if (zoneError) {
       res.status(400).json({ error: zoneError });
       return;
@@ -796,7 +797,7 @@ app.post('/api/bundles/:bundleId/stage', (req, res) => {
     return;
   }
 
-  const zoneError = gradeZoneViolation(bundle.grade, location || 'Coat-Station');
+  const zoneError = gradeZoneViolation(bundle.grade, location || 'Coat-Station', bundle.status);
   if (zoneError) {
     res.status(400).json({ error: zoneError });
     return;
@@ -854,7 +855,7 @@ app.post('/api/bundles/:bundleId/drop', (req, res) => {
   }
 
   // Black bar stays SW; epoxy stays out of black-bar racks and SW shipping doors
-  const zoneError = gradeZoneViolation(bundle.grade, location);
+  const zoneError = gradeZoneViolation(bundle.grade, location, bundle.status);
   if (zoneError) {
     res.status(400).json({ error: zoneError });
     return;
