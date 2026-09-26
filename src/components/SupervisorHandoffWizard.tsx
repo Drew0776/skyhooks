@@ -59,8 +59,8 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
               <p className="text-[10px] text-slate-400 font-sans">Step {step} of 3: {step === 1 ? 'Review Open Exceptions' : step === 2 ? 'Supervisor Notes' : 'Confirm Handoff'}</p>
             </div>
           </div>
-          <button onClick={onClose} id="handoff-modal-close" className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
-            <X className="h-5 w-5" />
+          <button onClick={onClose} id="handoff-modal-close" aria-label="Close handoff wizard" className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -105,8 +105,9 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
           {step === 2 && (
             <div className="space-y-4">
               <div>
-                <label className="text-[10px] text-slate-400 uppercase block mb-1">Outgoing Supervisor Name</label>
+                <label htmlFor="handoff-supervisor" className="text-[10px] text-slate-400 uppercase block mb-1">Outgoing Supervisor Name</label>
                 <input
+                  id="handoff-supervisor"
                   type="text"
                   value={supervisorName}
                   onChange={e => setSupervisorName(e.target.value)}
@@ -115,8 +116,9 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-400 uppercase block mb-1">Incoming Shift</label>
+                <label htmlFor="handoff-shift" className="text-[10px] text-slate-400 uppercase block mb-1">Incoming Shift</label>
                 <select
+                  id="handoff-shift"
                   value={targetShift}
                   onChange={e => setTargetShift(e.target.value as any)}
                   className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-xs text-slate-200"
@@ -127,8 +129,9 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-400 uppercase block mb-1">Operational Shift Notes & Crane Clearances</label>
+                <label htmlFor="handoff-notes" className="text-[10px] text-slate-400 uppercase block mb-1">Operational Shift Notes & Crane Clearances</label>
                 <textarea
+                  id="handoff-notes"
                   rows={4}
                   value={handoffNotes}
                   onChange={e => setHandoffNotes(e.target.value)}

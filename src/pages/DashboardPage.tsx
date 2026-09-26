@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { isUvHazard, UV_GUIDANCE } from '../yardRules';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { LayoutDashboard, Sun, ShieldAlert, Award, TrendingUp, Layers, CheckCircle } from 'lucide-react';
+import { clickable } from '../utils/clickable';
 
 interface DashboardStats {
   bendingCount: number;
@@ -165,7 +166,7 @@ export default function DashboardPage() {
             {uvHazardBundles.map(b => (
               <div
                 key={b.id}
-                onClick={() => setSelectedBundleForModal(b)}
+                {...clickable(() => setSelectedBundleForModal(b))}
                 className="p-3 bg-slate-950 border border-slate-800 hover:border-amber-500/50 rounded-xl text-xs space-y-1 cursor-pointer transition-colors"
               >
                 <div className="flex items-center justify-between font-bold text-white">

@@ -108,8 +108,8 @@ export default function BundleDetailModal({ bundle, onClose }: BundleDetailModal
               <p className="text-xs text-slate-400 font-sans">Job Order: {bundle.jobId} • Mark {bundle.mark}</p>
             </div>
           </div>
-          <button onClick={onClose} id="bundle-modal-close" className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
-            <X className="h-5 w-5" />
+          <button onClick={onClose} id="bundle-modal-close" className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer" aria-label="Close bundle details">
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
