@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { WIND_LOCKOUT_MPH, gradeZoneViolation } from '../yardRules';
 import { useApp } from '../context/AppContext';
 import { HardHat, Compass, Anchor, AlertTriangle, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
 
@@ -11,7 +12,12 @@ export default function CraneCabPage() {
   const [ropeSway, setRopeSway] = useState(2); // degrees
   const [isExecuting, setIsExecuting] = useState(false);
 
-  const targetBundle = bundles.find(b => b.location === originSector);
+  const [carryId, setCarryId] = useState('');
+  const originBundles = bundles.filter(b => b.location === originSector);
+  // Bundle to carry: the one picked, or the first bundle resting at the origin
+  const targetBundle = originBundles.find(b => b.id === carryId) || originBundles[0];
+  const windLocked = windSpeed >= WIND_LOCKOUT_MPH;
+  const placementIssue = targetBundle ? gradeZoneViolation(targetBundle.grade, destSector) : null;
 
   const handleExecuteRoute = async () => {
     setIsExecuting(true);
@@ -22,6 +28,7 @@ export default function CraneCabPage() {
         body: JSON.stringify({
           originId: originSector,
           destinationId: destSector,
+          bundleId: targetBundle?.id,
           windSpeed,
           ropeSway,
           operatorName: `Gantry Operator (${selectedCrane})`
@@ -100,12 +107,12 @@ export default function CraneCabPage() {
                 onChange={e => setWindSpeed(Number(e.target.value))}
                 className="w-full accent-amber-500 cursor-pointer"
               />
-              <span className="text-[10px] text-slate-500">25+ MPH auto-locks outdoor gantry travel</span>
+              <span className={`text-[10px] ${windLocked ? 'text-rose-400 font-bold' : 'text-slate-500'}`}>{windLocked ? `Wind lockout: gantry travel is blocked at ${WIND_LOCKOUT_MPH}+ MPH` : `${WIND_LOCKOUT_MPH}+ MPH locks out outdoor gantry travel`}</span>
             </div>
 
             <div>
               <div className="flex items-center justify-between text-xs text-slate-300 mb-1">
-                <span>Hoist Rope Sway Angle</span>
+                <span>Hoist Rope Sway Angle <span className="text-slate-500">(logged with each move)</span></span>
                 <span className="text-amber-400 font-bold">{ropeSway}°</span>
               </div>
               <input
@@ -123,7 +130,7 @@ export default function CraneCabPage() {
             <span className="text-[10px] text-slate-500 uppercase block">Material Grade Rule:</span>
             <p className="text-slate-300 font-sans text-xxs leading-relaxed">
               {selectedCrane === 'Crane-SW'
-                ? '⚠️ Crane-SW is restricted to Black Carbon bar in SW sector zones.'
+                ? '⚠️ Crane-SW is the only crane allowed to lift black bar, and only within the SW zone.'
                 : '✅ Epoxy Bar Gantry active. Restricted from Black Bar racks.'}
             </p>
           </div>
@@ -169,6 +176,28 @@ export default function CraneCabPage() {
           </div>
 
           {/* Active Bundle Pick Preview */}
+          {originBundles.length > 1 && (
+            <div>
+              <label htmlFor="carry-bundle" className="text-[10px] text-slate-400 uppercase block mb-1">Bundle To Carry</label>
+              <select
+                id="carry-bundle"
+                value={targetBundle?.id || ''}
+                onChange={e => setCarryId(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-xs text-slate-200"
+              >
+                {originBundles.map(b => (
+                  <option key={b.id} value={b.id}>{b.tagId} · {b.grade} #{b.barSize} · {b.specification.replace('ASTM_', 'ASTM ')}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {placementIssue && (
+            <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 font-mono">
+              {placementIssue}
+            </div>
+          )}
+
           {targetBundle ? (
             <div className="p-4 bg-slate-950 border border-emerald-500/30 rounded-xl space-y-2 text-xs">
               <div className="flex items-center justify-between font-bold text-emerald-400">
@@ -176,7 +205,7 @@ export default function CraneCabPage() {
                 <span>{targetBundle.grade} Steel</span>
               </div>
               <div className="text-[11px] text-slate-300 font-sans">
-                Weight: {targetBundle.weight.toLocaleString()} lbs • Spec: {targetBundle.specification} • Ships: {targetBundle.shippingDate}
+                Weight: {targetBundle.weight.toLocaleString()} lbs • Spec: {targetBundle.specification.replace('ASTM_', 'ASTM ')} • Ships: {new Date(targetBundle.shippingDate).toLocaleDateString()}
               </div>
             </div>
           ) : (
@@ -187,11 +216,11 @@ export default function CraneCabPage() {
 
           <button
             onClick={handleExecuteRoute}
-            disabled={isExecuting}
-            className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-2 mt-auto"
+            disabled={isExecuting || windLocked || !!placementIssue}
+            className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-2 mt-auto disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed"
           >
             {isExecuting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            <span>{isExecuting ? 'Executing Overhead Transit...' : 'Execute Gantry Move'}</span>
+            <span>{isExecuting ? 'Executing Overhead Transit...' : windLocked ? 'Wind Lockout' : placementIssue ? 'Move Blocked' : 'Execute Gantry Move'}</span>
           </button>
         </div>
       </div>

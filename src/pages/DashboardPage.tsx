@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { isUvHazard, UV_GUIDANCE } from '../yardRules';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { LayoutDashboard, Sun, ShieldAlert, Award, TrendingUp, Layers, CheckCircle } from 'lucide-react';
 
@@ -31,7 +32,7 @@ export default function DashboardPage() {
 
   const gradeRatioData = [
     { name: 'Epoxy Steel (A775/A934)', value: epoxyCount, color: '#10b981' },
-    { name: 'Black Carbon Steel', value: blackCount, color: '#f59e0b' }
+    { name: 'Black Bar (Uncoated)', value: blackCount, color: '#f59e0b' }
   ];
 
   const jobTonnageData = jobs.map(j => ({
@@ -42,11 +43,8 @@ export default function DashboardPage() {
     total: j.totalBundles
   }));
 
-  const uvHazardBundles = bundles.filter(b => {
-    if (b.grade !== 'Epoxy' || !b.stagedAt) return false;
-    const days = (Date.now() - new Date(b.stagedAt).getTime()) / (1000 * 60 * 60 * 24);
-    return days >= 25;
-  });
+  // Same rule the server uses: epoxy in an outdoor zone for 25+ days
+  const uvHazardBundles = bundles.filter(b => isUvHazard(b));
 
   return (
     <div className="space-y-6 font-mono pb-12" id="dashboard-analytics-page">
@@ -124,7 +122,7 @@ export default function DashboardPage() {
         {/* Steel Grade Ratio Donut Chart */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-3">
-            Epoxy vs. Black Carbon Steel Volume
+            Epoxy vs. Black Bar Volume
           </h3>
           <div className="h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -160,7 +158,7 @@ export default function DashboardPage() {
             <h3 className="text-xs font-bold uppercase tracking-wider">ASTM Outdoor Storage Risk Flags</h3>
           </div>
           <p className="text-xs text-slate-300 font-sans leading-relaxed">
-            ASTM A775 specifies epoxy bundles stored outdoors for over 30 days must be covered with protective tarps to prevent UV deterioration.
+            Epoxy bundles outdoors for 25+ days. Cover them with opaque material before day 30. {UV_GUIDANCE}
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
