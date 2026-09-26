@@ -5,7 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { Bundle, Job, Operator, Exception, ShiftMessage, ActivityEvent, TrailerSize } from './src/types';
 import { INITIAL_BUNDLES, INITIAL_JOBS, INITIAL_OPERATORS, INITIAL_EXCEPTIONS, INITIAL_SHIFT_MESSAGES, INITIAL_ACTIVITY } from './src/seedData';
-import { WIND_LOCKOUT_MPH, gradeZoneViolation, isFirstShift, isUvHazard } from './src/yardRules';
+import { WIND_LOCKOUT_MPH, gradeZoneViolation, isFirstShift, isUvHazard, slottingConflict, slottingViolationMessage } from './src/yardRules';
 
 // Store state in-memory so modifications persist during runtime
 // Deep copies, so runtime changes never mutate the seed data and the yard can be reset
@@ -472,16 +472,10 @@ app.post('/api/gantry/execute-route', (req, res) => {
       res.status(400).json({ error: zoneError });
       return;
     }
-    const existingBundles = bundles.filter(b => b.location === destinationId && b.id !== targetBundle.id);
-    if (existingBundles.length > 0) {
-      const newShipping = new Date(targetBundle.shippingDate).getTime();
-      const conflict = existingBundles.find(e => new Date(e.shippingDate).getTime() < newShipping);
-      if (conflict) {
-        res.status(400).json({
-          error: `CRITICAL DYNAMIC SLOTTING VIOLATION: Stacking bundle ${targetBundle.tagId} (ships ${new Date(targetBundle.shippingDate).toLocaleDateString()}) on top of bundle ${conflict.tagId} (ships sooner: ${new Date(conflict.shippingDate).toLocaleDateString()}) at ${destinationId} is blocked to prevent extra crane picks and epoxy scraping.`
-        });
-        return;
-      }
+    const conflict = slottingConflict(targetBundle, destinationId, bundles);
+    if (conflict) {
+      res.status(400).json({ error: slottingViolationMessage(targetBundle, conflict, destinationId) });
+      return;
     }
 
     const oldLoc = targetBundle.location;
@@ -725,16 +719,10 @@ app.post('/api/bundles/:bundleId/drop', (req, res) => {
     return;
   }
 
-  const existingBundles = bundles.filter(b => b.location === location && b.id !== bundle.id);
-  if (existingBundles.length > 0) {
-    const newShipping = new Date(bundle.shippingDate).getTime();
-    const conflict = existingBundles.find(e => new Date(e.shippingDate).getTime() < newShipping);
-    if (conflict) {
-      res.status(400).json({
-        error: `CRITICAL DYNAMIC SLOTTING VIOLATION: Stacking bundle ${bundle.tagId} (ships ${new Date(bundle.shippingDate).toLocaleDateString()}) on top of bundle ${conflict.tagId} (ships sooner: ${new Date(conflict.shippingDate).toLocaleDateString()}) at ${location} is blocked to prevent extra crane picks and epoxy scraping.`
-      });
-      return;
-    }
+  const conflict = slottingConflict(bundle, location, bundles);
+  if (conflict) {
+    res.status(400).json({ error: slottingViolationMessage(bundle, conflict, location) });
+    return;
   }
 
   const oldLoc = bundle.location;

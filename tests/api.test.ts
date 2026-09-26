@@ -77,3 +77,29 @@ test('dashboard metrics answer', async () => {
   assert.equal(dash.status, 200);
   assert.equal(typeof dash.json.uvHazardsCount, 'number');
 });
+
+test('drop refuses to bury a bundle that ships sooner', async () => {
+  // TG-201 (b-3) ships the day after TG-103 (b-6), which sits on Door-1
+  const buried = await call('POST', '/api/bundles/b-3/drop', { location: 'Door-1' });
+  assert.equal(buried.status, 400);
+  assert.match(buried.json.error, /SLOTTING VIOLATION.*TG-103/);
+
+  const route = await call('POST', '/api/gantry/execute-route', { originId: 'Coat-Station', destinationId: 'Door-1', bundleId: 'b-3', windSpeed: 8 });
+  assert.equal(route.status, 400);
+  assert.match(route.json.error, /SLOTTING VIOLATION/);
+});
+
+test('the crane cab default move (Coat-Station to Door-2) goes through', async () => {
+  const r = await call('POST', '/api/gantry/execute-route', { originId: 'Coat-Station', destinationId: 'Door-2', bundleId: 'b-3', windSpeed: 8 });
+  assert.equal(r.status, 200, r.json?.error);
+});
+
+test('seed ship dates start today or later', async () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const { json } = await call('GET', '/api/bundles');
+  for (const b of json) {
+    const [y, m, d] = b.shippingDate.split('-').map(Number);
+    assert.ok(new Date(y, m - 1, d) >= today, `${b.tagId} ships ${b.shippingDate}`);
+  }
+});

@@ -57,7 +57,7 @@ export default function NavBar() {
             </div>
           </Link>
 
-          <div className="hidden lg:flex items-center gap-1.5" role="navigation" aria-label="Main navigation">
+          <div className="hidden lg:flex items-center gap-1.5 xl:gap-1" role="navigation" aria-label="Main navigation">
             {visibleItems.map((item) => {
               const isActive = location === item.href;
               const Icon = item.icon;
@@ -66,14 +66,16 @@ export default function NavBar() {
                   key={item.href}
                   href={item.href}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-mono tracking-wider transition-colors cursor-pointer ${
+                  title={item.label}
+                  aria-label={item.label}
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 xl:px-2 py-2 text-xs font-mono tracking-wider transition-colors cursor-pointer ${
                     isActive
                       ? 'bg-slate-900 text-amber-400 border border-slate-800'
                       : 'text-slate-400 hover:bg-slate-950 hover:text-slate-200 border border-transparent'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-amber-500' : 'text-muted'}`} />
-                  <span>{item.label}</span>
+                  <Icon className={`h-4 w-4 xl:hidden ${isActive ? 'text-amber-500' : 'text-muted'}`} aria-hidden="true" />
+                  <span className="hidden xl:inline">{item.label}</span>
                 </Link>
               );
             })}
@@ -84,7 +86,7 @@ export default function NavBar() {
             <button
               onClick={() => setIsAiModalOpen(true)}
               id="ai-copilot-launch-btn"
-              className="inline-flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer shadow-xs hover:border-amber-400"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer shadow-xs hover:border-amber-400"
             >
               <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
               <span className="hidden sm:inline">AI CO-PILOT</span>
@@ -95,7 +97,7 @@ export default function NavBar() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="font-mono text-[9px] uppercase tracking-widest text-emerald-400 font-medium">SERVER LIVE</span>
+              <span className="font-mono text-[9px] uppercase tracking-widest text-emerald-400 font-medium hidden xl:inline whitespace-nowrap">SERVER LIVE</span>
             </div>
             <RoleSwitcher />
           </div>

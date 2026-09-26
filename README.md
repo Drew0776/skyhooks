@@ -4,7 +4,7 @@ SkyHook tracks every rebar bundle in a fabrication yard from raw stock to the tr
 
 ## Features
 
-- **Crane cab** (`/crane`): gantry transit from a pickup zone to a drop zone, with a bundle picker, placement warnings and wind/sway readings. Reported wind of **25 mph or more locks out gantry travel**.
+- **Crane cab** (`/crane`): gantry transit from a pickup zone to a drop zone, with a bundle picker, wind/sway readings and zoning and ships-first warnings before the move is sent. Reported wind of **25 mph or more locks out gantry travel**.
 - **Floor trigger** (`/floor`): stage, bend and export a PDF floor report.
 - **Yard map, jobs, exceptions, dashboard**: inventory, order progress, QC audits, UV exposure and shift throughput.
 - **AI co-pilot**: yard Q&A, route optimization and shift-log anomaly checks, answered from live yard data.
@@ -44,7 +44,7 @@ npm run dev                  # http://localhost:3000
 | `npm run build` | Build the client into `dist/` and bundle the server into `dist/server.cjs` |
 | `npm start` | Serve the production build from `dist/` |
 
-The yard state is kept in memory and starts from [`src/seedData.ts`](src/seedData.ts), which is fictional sample data.
+The yard state is kept in memory and starts from [`src/seedData.ts`](src/seedData.ts), which is fictional sample data. Its ship dates and timestamps are relative to server start, so the sample schedule is always current.
 
 ## API highlights
 

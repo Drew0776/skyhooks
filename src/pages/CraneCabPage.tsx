@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { WIND_LOCKOUT_MPH, gradeZoneViolation } from '../yardRules';
+import { WIND_LOCKOUT_MPH, formatShipDate, gradeZoneViolation, slottingConflict, slottingViolationMessage } from '../yardRules';
 import { useApp } from '../context/AppContext';
 import { HardHat, Compass, Anchor, AlertTriangle, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
 
@@ -7,7 +7,7 @@ export default function CraneCabPage() {
   const { bundles, showToast, refreshState } = useApp();
   const [selectedCrane, setSelectedCrane] = useState<'Crane-NW' | 'Crane-NE' | 'Crane-SW' | 'Crane-SE'>('Crane-NW');
   const [originSector, setOriginSector] = useState('Coat-Station');
-  const [destSector, setDestSector] = useState('Door-1');
+  const [destSector, setDestSector] = useState('Door-2');
   const [windSpeed, setWindSpeed] = useState(8); // mph
   const [ropeSway, setRopeSway] = useState(2); // degrees
   const [isExecuting, setIsExecuting] = useState(false);
@@ -17,7 +17,11 @@ export default function CraneCabPage() {
   // Bundle to carry: the one picked, or the first bundle resting at the origin
   const targetBundle = originBundles.find(b => b.id === carryId) || originBundles[0];
   const windLocked = windSpeed >= WIND_LOCKOUT_MPH;
-  const placementIssue = targetBundle ? gradeZoneViolation(targetBundle.grade, destSector) : null;
+  const slotConflict = targetBundle ? slottingConflict(targetBundle, destSector, bundles) : undefined;
+  // The same zoning and ships-first checks the server runs, shown before the operator commits
+  const placementIssue = targetBundle
+    ? gradeZoneViolation(targetBundle.grade, destSector) ?? (slotConflict ? slottingViolationMessage(targetBundle, slotConflict, destSector) : null)
+    : null;
 
   const handleExecuteRoute = async () => {
     setIsExecuting(true);
@@ -205,7 +209,7 @@ export default function CraneCabPage() {
                 <span>{targetBundle.grade} Steel</span>
               </div>
               <div className="text-[11px] text-slate-300 font-sans">
-                Weight: {targetBundle.weight.toLocaleString()} lbs • Spec: {targetBundle.specification.replace('ASTM_', 'ASTM ')} • Ships: {new Date(targetBundle.shippingDate).toLocaleDateString()}
+                Weight: {targetBundle.weight.toLocaleString()} lbs • Spec: {targetBundle.specification.replace('ASTM_', 'ASTM ')} • Ships: {formatShipDate(targetBundle.shippingDate)}
               </div>
             </div>
           ) : (
