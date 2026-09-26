@@ -284,7 +284,7 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
                   {logAnalysis}
                 </div>
               ) : (
-                <div className="p-8 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
+                <div className="p-8 text-center text-muted text-xs border border-dashed border-slate-800 rounded-xl">
                   Click 'Run AI Scan' above to analyze active shift messages and exception holds.
                 </div>
               )}

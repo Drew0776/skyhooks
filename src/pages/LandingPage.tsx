@@ -56,28 +56,28 @@ export default function LandingPage() {
           <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-xl">
             <div className="flex items-center justify-between text-slate-400 text-xxs uppercase tracking-wider mb-1">
               <span>Total Active Inventory</span>
-              <Layers className="h-4 w-4 text-slate-500" />
+              <Layers className="h-4 w-4 text-muted" />
             </div>
             <div className="text-xl font-black text-white">{bundles.length} <span className="text-xs font-normal text-slate-400">Bundles</span></div>
-            <div className="text-[10px] text-slate-500 mt-1">{totalTonnage} Tons On Floor</div>
+            <div className="text-[10px] text-muted mt-1">{totalTonnage} Tons On Floor</div>
           </div>
 
           <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-xl">
             <div className="flex items-center justify-between text-slate-400 text-xxs uppercase tracking-wider mb-1">
               <span>Active Orders</span>
-              <HardHat className="h-4 w-4 text-slate-500" />
+              <HardHat className="h-4 w-4 text-muted" />
             </div>
             <div className="text-xl font-black text-amber-400">{activeJobs.length} <span className="text-xs font-normal text-slate-400">In Progress</span></div>
-            <div className="text-[10px] text-slate-500 mt-1">{jobs.length} Total Registered</div>
+            <div className="text-[10px] text-muted mt-1">{jobs.length} Total Registered</div>
           </div>
 
           <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-xl">
             <div className="flex items-center justify-between text-slate-400 text-xxs uppercase tracking-wider mb-1">
               <span>Floor Exceptions</span>
-              <AlertTriangle className="h-4 w-4 text-slate-500" />
+              <AlertTriangle className="h-4 w-4 text-muted" />
             </div>
             <div className="text-xl font-black text-rose-400">{openExceptions.length} <span className="text-xs font-normal text-slate-400">Open Holds</span></div>
-            <div className="text-[10px] text-slate-500 mt-1">Requires Supervisor Review</div>
+            <div className="text-[10px] text-muted mt-1">Requires Supervisor Review</div>
           </div>
 
           <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-xl">
@@ -86,7 +86,7 @@ export default function LandingPage() {
               <Activity className="h-4 w-4 text-emerald-400 animate-pulse" />
             </div>
             <div className="text-xl font-black text-emerald-400">LIVE <span className="text-xs font-normal text-slate-400">SSE Stream</span></div>
-            <div className="text-[10px] text-slate-500 mt-1">{activityEvents.length} Events Logged</div>
+            <div className="text-[10px] text-muted mt-1">{activityEvents.length} Events Logged</div>
           </div>
         </div>
       </div>
@@ -121,11 +121,11 @@ export default function LandingPage() {
                       }}
                       className="font-bold text-slate-200 hover:text-amber-400 cursor-pointer flex items-center gap-1"
                     >
-                      <Tag className="h-3 w-3 text-slate-500" />
+                      <Tag className="h-3 w-3 text-muted" />
                       <span>{evt.tagId}</span>
                     </button>
                   </div>
-                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                  <span className="text-[10px] text-muted flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     {new Date(evt.timestamp).toLocaleTimeString()}
                   </span>
@@ -133,13 +133,13 @@ export default function LandingPage() {
 
                 <div className="text-slate-300 font-sans text-xs flex items-center gap-2 pt-0.5">
                   <span className="text-slate-400">{evt.fromLocation}</span>
-                  <ArrowRight className="h-3 w-3 text-slate-600 shrink-0" />
+                  <ArrowRight className="h-3 w-3 text-muted shrink-0" />
                   <span className="text-emerald-400 font-mono font-bold">{evt.toLocation}</span>
                 </div>
 
                 {evt.details && (
                   <p className="text-[11px] text-slate-400 font-sans pt-1 border-t border-slate-900">
-                    {evt.details} — <span className="text-slate-500">{evt.operatorName}</span>
+                    {evt.details} — <span className="text-muted">{evt.operatorName}</span>
                   </p>
                 )}
               </div>
@@ -167,10 +167,10 @@ export default function LandingPage() {
               <div key={msg.id} className="p-3.5 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-indigo-300">{msg.sender}</span>
-                  <span className="text-[10px] text-slate-500">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-[10px] text-muted">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
                 <p className="text-xs text-slate-300 font-sans leading-relaxed">{msg.content}</p>
-                <div className="text-[9px] text-slate-500 uppercase tracking-wider font-mono">{msg.shift}</div>
+                <div className="text-[9px] text-muted uppercase tracking-wider font-mono">{msg.shift}</div>
               </div>
             ))}
           </div>

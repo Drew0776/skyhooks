@@ -116,7 +116,7 @@ export default function BundleDetailModal({ bundle, onClose }: BundleDetailModal
         <div className="p-6 space-y-6">
           {/* Visual Profile Canvas */}
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col items-center relative">
-            <div className="absolute top-3 left-3 text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+            <div className="absolute top-3 left-3 text-[10px] text-muted uppercase tracking-widest flex items-center gap-1.5">
               <Cpu className="h-3.5 w-3.5 text-amber-500" />
               <span>3D Bending Geometry Profile • Shape Code {bundle.shapeCode || '00'}</span>
             </div>
@@ -126,28 +126,28 @@ export default function BundleDetailModal({ bundle, onClose }: BundleDetailModal
           {/* Specifications Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl">
-              <span className="text-[10px] text-slate-500 block uppercase">Steel Grade</span>
+              <span className="text-[10px] text-muted block uppercase">Steel Grade</span>
               <span className={`font-bold mt-1 block ${bundle.grade === 'Epoxy' ? 'text-emerald-400' : 'text-amber-400'}`}>
                 {bundle.grade} Steel
               </span>
             </div>
 
             <div className="bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl">
-              <span className="text-[10px] text-slate-500 block uppercase">Bar Size & Length</span>
+              <span className="text-[10px] text-muted block uppercase">Bar Size & Length</span>
               <span className="text-slate-200 font-bold mt-1 block">
                 #{bundle.barSize} @ {bundle.length} ft
               </span>
             </div>
 
             <div className="bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl">
-              <span className="text-[10px] text-slate-500 block uppercase">Weight & Count</span>
+              <span className="text-[10px] text-muted block uppercase">Weight & Count</span>
               <span className="text-slate-200 font-bold mt-1 block">
                 {bundle.weight.toLocaleString()} lbs ({bundle.pieces} pcs)
               </span>
             </div>
 
             <div className="bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl">
-              <span className="text-[10px] text-slate-500 block uppercase">Specification</span>
+              <span className="text-[10px] text-muted block uppercase">Specification</span>
               <span className="text-slate-200 font-bold mt-1 block">
                 {bundle.specification.replace('_', ' ')}
               </span>

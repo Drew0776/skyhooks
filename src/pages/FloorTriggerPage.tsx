@@ -201,7 +201,7 @@ export default function FloorTriggerPage() {
           <div className="space-y-3 mt-4">
             <div>
               <label className="text-[10px] uppercase text-slate-400 block mb-1">Target Mandrel Angle ({activeMandrelAngle}°)</label>
-              <input
+              <input aria-label="Target mandrel angle"
                 type="range"
                 min="0"
                 max="180"
@@ -229,7 +229,7 @@ export default function FloorTriggerPage() {
               <Wrench className="h-5 w-5 text-indigo-400" />
               <h2 className="text-xs font-bold text-white uppercase tracking-wider">Active Fabrication Floor Queue</h2>
             </div>
-            <select
+            <select aria-label="Bender"
               value={selectedBender}
               onChange={e => setSelectedBender(e.target.value)}
               className="bg-slate-950 border border-slate-800 p-1.5 rounded text-xs text-slate-200"
@@ -243,7 +243,7 @@ export default function FloorTriggerPage() {
           <div className="space-y-3">
             <h3 className="text-xxs text-amber-400 uppercase tracking-widest font-bold">Currently In Fabrication</h3>
             {bendingBundles.length === 0 ? (
-              <div className="p-4 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
+              <div className="p-4 text-center text-muted text-xs border border-dashed border-slate-800 rounded-xl">
                 No bundles currently undergoing bending at {selectedBender}.
               </div>
             ) : (

@@ -71,7 +71,7 @@ export default function CraneCabPage() {
 
         <div className="flex items-center gap-2">
           <label className="text-xs text-slate-400">Active Gantry:</label>
-          <select
+          <select aria-label="Active gantry"
             value={selectedCrane}
             onChange={e => setSelectedCrane(e.target.value as any)}
             className="bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-amber-400 font-bold"
@@ -99,7 +99,7 @@ export default function CraneCabPage() {
                 <span>Wind Velocity Anemometer</span>
                 <span className="text-amber-400 font-bold">{windSpeed} MPH</span>
               </div>
-              <input
+              <input aria-label="Wind speed in mph"
                 type="range"
                 min="0"
                 max="35"
@@ -107,15 +107,15 @@ export default function CraneCabPage() {
                 onChange={e => setWindSpeed(Number(e.target.value))}
                 className="w-full accent-amber-500 cursor-pointer"
               />
-              <span className={`text-[10px] ${windLocked ? 'text-rose-400 font-bold' : 'text-slate-500'}`}>{windLocked ? `Wind lockout: gantry travel is blocked at ${WIND_LOCKOUT_MPH}+ MPH` : `${WIND_LOCKOUT_MPH}+ MPH locks out outdoor gantry travel`}</span>
+              <span className={`text-[10px] ${windLocked ? 'text-rose-400 font-bold' : 'text-muted'}`}>{windLocked ? `Wind lockout: gantry travel is blocked at ${WIND_LOCKOUT_MPH}+ MPH` : `${WIND_LOCKOUT_MPH}+ MPH locks out outdoor gantry travel`}</span>
             </div>
 
             <div>
               <div className="flex items-center justify-between text-xs text-slate-300 mb-1">
-                <span>Hoist Rope Sway Angle <span className="text-slate-500">(logged with each move)</span></span>
+                <span>Hoist Rope Sway Angle <span className="text-muted">(logged with each move)</span></span>
                 <span className="text-amber-400 font-bold">{ropeSway}°</span>
               </div>
-              <input
+              <input aria-label="Hoist rope sway angle in degrees"
                 type="range"
                 min="0"
                 max="10"
@@ -127,7 +127,7 @@ export default function CraneCabPage() {
           </div>
 
           <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2 text-xs">
-            <span className="text-[10px] text-slate-500 uppercase block">Material Grade Rule:</span>
+            <span className="text-[10px] text-muted uppercase block">Material Grade Rule:</span>
             <p className="text-slate-300 font-sans text-xxs leading-relaxed">
               {selectedCrane === 'Crane-SW'
                 ? '⚠️ Crane-SW is the only crane allowed to lift black bar, and only within the SW zone.'
@@ -146,7 +146,7 @@ export default function CraneCabPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-[10px] text-slate-400 uppercase block mb-1">Pickup Origin Zone</label>
-              <select
+              <select aria-label="Pickup origin zone"
                 value={originSector}
                 onChange={e => setOriginSector(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-xs text-slate-200"
@@ -161,7 +161,7 @@ export default function CraneCabPage() {
 
             <div>
               <label className="text-[10px] text-slate-400 uppercase block mb-1">Target Drop Zone</label>
-              <select
+              <select aria-label="Target drop zone"
                 value={destSector}
                 onChange={e => setDestSector(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-xs text-slate-200"
@@ -209,7 +209,7 @@ export default function CraneCabPage() {
               </div>
             </div>
           ) : (
-            <div className="p-4 bg-slate-950/60 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+            <div className="p-4 bg-slate-950/60 border border-dashed border-slate-800 rounded-xl text-muted text-xs">
               No bundle currently staged at origin "{originSector}". Trolley will execute idle traverse.
             </div>
           )}
