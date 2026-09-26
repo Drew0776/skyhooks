@@ -49,8 +49,8 @@ const ai = new GoogleGenAI({
     }
   }
 });
-// Co-pilot model; override with GEMINI_MODEL
-const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+// Co-pilot model, pinned so answers don't shift under an alias; override with GEMINI_MODEL (e.g. gemini-flash-latest)
+const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 // Each AI call spends Gemini quota, so requests per client and question length are capped
 const AI_REQUESTS_PER_MINUTE = 12;
 const MAX_AI_PROMPT_CHARS = 2000;
@@ -293,7 +293,7 @@ Current plant time: ${plantNow} (${PLANT_TIME_ZONE}), ${isFirstShift(now.toISOSt
 Answer only from the live yard data you are given and the yard rules below. If the data doesn't answer a question, say so instead of guessing. Don't cite ASTM requirements beyond those listed here.
 
 Yard rules, enforced by the server:
-- Grade zoning: black (uncoated, ASTM A615) bar is SW-only: Raw-SW, Door-7 and Door-8, racks J-19 to J-25 and L-6 to L-10. Epoxy (ASTM A775 or A934) stays out of those racks and ships from Door-1, Door-2, Door-3 or North-End. Shears, benders and the coat line take either grade.
+- Grade zoning: black (uncoated, ASTM A615) bar may only be at Raw-SW, Door-7, Door-8, racks J-19 to J-25 and L-6 to L-10, or a shear, bender or the coat line. Epoxy (ASTM A775 or A934) may not be stored in racks J-19 to J-25 or L-6 to L-10, and ships only from Door-1, Door-2, Door-3 or North-End, never Door-7 or Door-8. Every other zone, Raw-SW included, takes either grade.
 - Ships-first stacking: a bundle can't be set on a spot holding a bundle that ships sooner.
 - Gantry interlocks: a parked crane on the path blocks a move. Crossing a zone loaded to 60% of its limit (75,000 lb by default) forces slow mode, and 85% blocks the move. ASTM A934 bundles skip slow mode.
 - Hard stops: a bundle that fails coating QC (more than 2% damage) is REJECTED and can't move. Reported wind of ${WIND_LOCKOUT_MPH} mph or more locks out gantry travel.

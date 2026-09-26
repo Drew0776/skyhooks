@@ -34,7 +34,7 @@ npm run dev                  # http://localhost:3000
 | Variable | Purpose |
 | --- | --- |
 | `GEMINI_API_KEY` | Enables the AI co-pilot. Without it, the AI endpoints return 503 with setup instructions and the rest of the app works normally. Keep it in `.env.local` (git-ignored) or your host's secrets, never in code. |
-| `GEMINI_MODEL` | Optional. Gemini model for the co-pilot (default `gemini-3.6-flash`). |
+| `GEMINI_MODEL` | Optional. Gemini model for the co-pilot (default `gemini-3.8-flash`). Set `gemini-flash-latest` to follow Google's newest Flash model automatically. |
 | `APP_URL` | Public URL of the deployed app (set automatically on AI Studio). |
 
 | Script | What it does |
