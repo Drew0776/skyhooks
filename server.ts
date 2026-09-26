@@ -41,14 +41,19 @@ dotenv.config({ path: ['.env.local', '.env'], quiet: true });
 
 // Initialize Google GenAI Client with User-Agent header per AI Studio telemetry guidelines
 const apiKey = process.env.GEMINI_API_KEY || '';
-const ai = new GoogleGenAI({
-  apiKey,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+// Created on first use, so a server without a key never builds one (the SDK warns at startup when it
+// has no key); requireAi() answers 503 before any route gets here without a key
+let aiClient: GoogleGenAI | undefined;
+function gemini(): GoogleGenAI {
+  return aiClient ??= new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      }
     }
-  }
-});
+  });
+}
 // Co-pilot model, pinned so answers don't shift under an alias; override with GEMINI_MODEL (e.g. gemini-flash-latest)
 const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 // Each AI call spends Gemini quota, so requests per client and question length are capped
@@ -236,6 +241,61 @@ function logActivity(tagId: string, operatorName: string, action: string, fromLo
 const app = express();
 app.use(express.json());
 
+// Every text and number field the API accepts, checked once here so no route can store an object,
+// an array or a novel where the screens expect short text (one bad record crashed every open screen),
+// and no garbage number can slip past a safety check (windSpeed: "high" used to skip the wind lockout).
+const TEXT_FIELDS: Record<string, number> = {
+  operatorName: 80, sender: 80, resolvedBy: 80,
+  tagId: 40, bundleId: 40, bundleTagId: 40,
+  type: 60, shift: 20, action: 40, trailerSize: 20, materialClass: 20,
+  location: 40, craneId: 40, benderId: 40, door: 40, originId: 40, destinationId: 40,
+  description: 1000, content: 1000, resolutionNotes: 500
+};
+const NUMBER_FIELDS: Record<string, [number, number]> = { windSpeed: [0, 200], ropeSway: [0, 90], bundleLength: [0, 100] };
+const MAX_BULK_BUNDLES = 500;
+
+app.use('/api', (req, res, next) => {
+  if (req.method !== 'POST' && req.method !== 'PUT') return next();
+  const body = req.body;
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    res.status(400).json({ error: 'The request body must be a JSON object.' });
+    return;
+  }
+  for (const [field, max] of Object.entries(TEXT_FIELDS)) {
+    const value = body[field];
+    if (value === undefined || value === null) continue;
+    if (typeof value !== 'string') {
+      res.status(400).json({ error: `${field} must be text.` });
+      return;
+    }
+    if (value.length > max) {
+      res.status(400).json({ error: `${field} is limited to ${max.toLocaleString()} characters.` });
+      return;
+    }
+    body[field] = value.trim(); // so a blank-but-spaces value counts as missing
+  }
+  for (const [field, [min, max]] of Object.entries(NUMBER_FIELDS)) {
+    const value = body[field];
+    if (value === undefined || value === null) continue;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
+      res.status(400).json({ error: `${field} must be a number from ${min} to ${max}.` });
+      return;
+    }
+  }
+  if (body.bundleIds !== undefined && (!Array.isArray(body.bundleIds) || body.bundleIds.length > MAX_BULK_BUNDLES ||
+      body.bundleIds.some((id: unknown) => typeof id !== 'string' || id.length > 40))) {
+    res.status(400).json({ error: `bundleIds must be a list of up to ${MAX_BULK_BUNDLES} bundle IDs.` });
+    return;
+  }
+  const audit = body.qualityAudit;
+  if (audit !== undefined && audit !== null && (typeof audit !== 'object' || Array.isArray(audit) ||
+      (audit.damagedFootSection != null && (typeof audit.damagedFootSection !== 'string' || audit.damagedFootSection.length > 40)))) {
+    res.status(400).json({ error: 'qualityAudit must be an object with a short damagedFootSection.' });
+    return;
+  }
+  next();
+});
+
 app.use('/api/ai', (req, res, next) => {
   if (req.method !== 'POST') return next();
   const now = Date.now();
@@ -368,7 +428,7 @@ app.post('/api/ai/query', async (req, res) => {
       }))
     };
 
-    const response = await ai.models.generateContent({
+    const response = await gemini().models.generateContent({
       model: AI_MODEL,
       contents: `[LIVE YARD DATA, bundles soonest-shipping first]\n${JSON.stringify(yardContext, null, 2)}\n\n[QUESTION]\n${prompt}`,
       config: { systemInstruction: aiSystemInstruction(new Date(now)) }
@@ -425,7 +485,7 @@ Give, as short Markdown bullet points:
 2. Step-by-step operator guidance for the gantry
 3. Material handling and compliance notes`;
 
-    const response = await ai.models.generateContent({
+    const response = await gemini().models.generateContent({
       model: AI_MODEL,
       contents: prompt,
       config: { systemInstruction: aiSystemInstruction() }
@@ -467,7 +527,7 @@ Identify, as short Markdown bullet points:
 2. Compliance and UV exposure risks
 3. Action points for the next shift handoff`;
 
-    const response = await ai.models.generateContent({
+    const response = await gemini().models.generateContent({
       model: AI_MODEL,
       contents: prompt,
       config: { systemInstruction: aiSystemInstruction(new Date(now)) }
@@ -690,7 +750,8 @@ app.post('/api/exceptions', (req, res) => {
 
 app.post('/api/exceptions/:exceptionId/resolve', (req, res) => {
   const { exceptionId } = req.params;
-  const { resolvedBy } = req.body;
+  // The Exceptions screen sends who resolved it as operatorName, with the inspector's notes
+  const { resolvedBy, operatorName, resolutionNotes } = req.body;
   const ex = exceptions.find(e => e.id === exceptionId);
   if (!ex) {
     res.status(404).json({ error: 'Exception not found' });
@@ -698,7 +759,8 @@ app.post('/api/exceptions/:exceptionId/resolve', (req, res) => {
   }
   ex.status = 'RESOLVED';
   ex.resolvedAt = new Date().toISOString();
-  ex.resolvedBy = resolvedBy || 'ADMIN';
+  ex.resolvedBy = resolvedBy || operatorName || 'ADMIN';
+  if (resolutionNotes) ex.resolutionNotes = resolutionNotes;
   notifyClients();
   res.json(ex);
 });
@@ -1027,6 +1089,10 @@ app.use('/api', (req, res) => {
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err?.type === 'entity.parse.failed') {
     res.status(400).json({ error: 'Request body is not valid JSON.' });
+    return;
+  }
+  if (err?.type === 'entity.too.large') {
+    res.status(413).json({ error: 'The request body is too large (100 KB maximum).' });
     return;
   }
   console.error('Unhandled server error:', err);

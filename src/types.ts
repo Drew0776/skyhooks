@@ -66,6 +66,7 @@ export interface Exception {
   status: 'OPEN' | 'RESOLVED';
   resolvedAt?: string;
   resolvedBy?: string;
+  resolutionNotes?: string;
   qualityAudit?: QualityAudit;
 }
 

@@ -218,7 +218,7 @@ export const INITIAL_EXCEPTIONS: Exception[] = [
     tagId: 'TG-102',
     operatorName: 'Jake Vance',
     type: 'ASTM UV Hazard',
-    description: 'Bundle TG-102 has been staged in outdoor Rack J-12 for 27 days. ASTM A775 specifies maximum 30 days UV exposure without protective tarps.',
+    description: 'Bundle TG-102 has sat in outdoor Rack J-12 for 27 days. Industry handling guidance calls for opaque covers on coated bar stored outdoors beyond 30 days.',
     status: 'OPEN'
   },
   {

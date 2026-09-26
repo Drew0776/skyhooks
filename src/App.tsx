@@ -1,8 +1,9 @@
 import React, { lazy, Suspense } from 'react';
-import { Route, Switch } from 'wouter';
+import { Route, Switch, useLocation } from 'wouter';
 import { AppProvider, useApp } from './context/AppContext';
 import NavBar from './components/NavBar';
 import BundleDetailModal from './components/BundleDetailModal';
+import ScreenErrorBoundary from './components/ScreenErrorBoundary';
 
 // Each console screen loads on demand, so the first page doesn't download every screen's code
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -12,6 +13,7 @@ const CraneCabPage = lazy(() => import('./pages/CraneCabPage'));
 const YardMapPage = lazy(() => import('./pages/YardMapPage'));
 const JobsPage = lazy(() => import('./pages/JobsPage'));
 const ExceptionsPage = lazy(() => import('./pages/ExceptionsPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function ScreenLoader() {
   return (
@@ -23,12 +25,14 @@ function ScreenLoader() {
 
 function AppContent() {
   const { selectedBundleForModal, setSelectedBundleForModal, toast } = useApp();
+  const [location] = useLocation();
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-amber-500 selection:text-slate-950 flex flex-col antialiased">
       <NavBar />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+        <ScreenErrorBoundary key={location}>
         <Suspense fallback={<ScreenLoader />}>
         <Switch>
           <Route path="/" component={LandingPage} />
@@ -38,11 +42,10 @@ function AppContent() {
           <Route path="/yard-map" component={YardMapPage} />
           <Route path="/jobs" component={JobsPage} />
           <Route path="/exceptions" component={ExceptionsPage} />
-          <Route>
-            <LandingPage />
-          </Route>
+          <Route component={NotFoundPage} />
         </Switch>
         </Suspense>
+        </ScreenErrorBoundary>
       </main>
 
       {/* Global Toast Notification */}

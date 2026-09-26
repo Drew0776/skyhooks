@@ -93,6 +93,7 @@ export default function ExceptionsPage() {
                       type="text"
                       placeholder="e.g. Patch touch-up complete using epoxy liquid compound per ASTM A775..."
                       value={resolutionNotes[ex.id] || ''}
+                      maxLength={500}
                       onChange={e => setResolutionNotes({ ...resolutionNotes, [ex.id]: e.target.value })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:border-amber-500 focus:outline-hidden"
                     />
