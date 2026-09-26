@@ -84,7 +84,7 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
                     <div key={ex.id} className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs space-y-1">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-amber-400">{ex.type}</span>
-                        <span className="text-[10px] text-slate-500">Tag: {ex.tagId}</span>
+                        <span className="text-[10px] text-muted">Tag: {ex.tagId}</span>
                       </div>
                       <p className="text-slate-300 font-sans text-xxs leading-relaxed">{ex.description}</p>
                     </div>
@@ -163,7 +163,7 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
                 <div className="text-slate-400">Target Shift: <strong className="text-amber-400">{targetShift}</strong></div>
                 <div className="text-slate-400">Open Exceptions: <strong className="text-white">{openExceptions.length}</strong></div>
                 <div className="pt-2 border-t border-slate-800">
-                  <span className="text-[10px] text-slate-500 uppercase block mb-1">Shift Notes:</span>
+                  <span className="text-[10px] text-muted uppercase block mb-1">Shift Notes:</span>
                   <p className="text-slate-300 font-sans text-xs italic">"{handoffNotes}"</p>
                 </div>
               </div>

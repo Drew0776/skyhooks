@@ -15,7 +15,7 @@ const ExceptionsPage = lazy(() => import('./pages/ExceptionsPage'));
 
 function ScreenLoader() {
   return (
-    <div className="flex items-center justify-center min-h-[40vh] font-mono text-xs text-slate-500" role="status" aria-live="polite">
+    <div className="flex items-center justify-center min-h-[40vh] font-mono text-xs text-muted" role="status" aria-live="polite">
       Loading console...
     </div>
   );

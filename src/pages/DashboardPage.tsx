@@ -67,7 +67,7 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-emerald-400" />
           </div>
           <div className="text-2xl font-black text-white">{stats?.firstShiftThroughput || 0} <span className="text-xs font-normal text-slate-400">Tons</span></div>
-          <p className="text-[10px] text-slate-500 font-sans mt-1">Target: 35 Tons / shift</p>
+          <p className="text-[10px] text-muted font-sans mt-1">Target: 35 Tons / shift</p>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
@@ -76,7 +76,7 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-amber-400" />
           </div>
           <div className="text-2xl font-black text-white">{stats?.secondShiftThroughput || 0} <span className="text-xs font-normal text-slate-400">Tons</span></div>
-          <p className="text-[10px] text-slate-500 font-sans mt-1">Target: 25 Tons / shift</p>
+          <p className="text-[10px] text-muted font-sans mt-1">Target: 25 Tons / shift</p>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
@@ -85,7 +85,7 @@ export default function DashboardPage() {
             <Sun className="h-4 w-4 text-amber-500 animate-spin" />
           </div>
           <div className="text-2xl font-black text-amber-400">{uvHazardBundles.length} <span className="text-xs font-normal text-slate-400">Bundles</span></div>
-          <p className="text-[10px] text-slate-500 font-sans mt-1">25+ Days Outdoor Storage</p>
+          <p className="text-[10px] text-muted font-sans mt-1">25+ Days Outdoor Storage</p>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
@@ -94,7 +94,7 @@ export default function DashboardPage() {
             <Award className="h-4 w-4 text-emerald-400" />
           </div>
           <div className="text-2xl font-black text-emerald-400">99.2%</div>
-          <p className="text-[10px] text-slate-500 font-sans mt-1">Under 2% coating damage threshold</p>
+          <p className="text-[10px] text-muted font-sans mt-1">Under 2% coating damage threshold</p>
         </div>
       </div>
 
@@ -102,9 +102,9 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Active Jobs Tonnage Breakdown Chart */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-3">
+          <h2 className="text-xs font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-3">
             Active Job Tonnage (Tons)
-          </h3>
+          </h2>
           <div className="h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={jobTonnageData}>
@@ -121,9 +121,9 @@ export default function DashboardPage() {
 
         {/* Steel Grade Ratio Donut Chart */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-3">
+          <h2 className="text-xs font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-3">
             Epoxy vs. Black Bar Volume
-          </h3>
+          </h2>
           <div className="h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -155,10 +155,10 @@ export default function DashboardPage() {
         <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-5 shadow-xl space-y-3">
           <div className="flex items-center gap-2 text-amber-400">
             <ShieldAlert className="h-5 w-5" />
-            <h3 className="text-xs font-bold uppercase tracking-wider">ASTM Outdoor Storage Risk Flags</h3>
+            <h2 className="text-xs font-bold uppercase tracking-wider">ASTM Outdoor Storage Risk Flags</h2>
           </div>
           <p className="text-xs text-slate-300 font-sans leading-relaxed">
-            Epoxy bundles outdoors for 25+ days. Cover them with opaque material before day 30. {UV_GUIDANCE}
+            Epoxy bundles outdoors for 25+ days need covering soon. {UV_GUIDANCE}
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

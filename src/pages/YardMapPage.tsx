@@ -65,7 +65,7 @@ export default function YardMapPage() {
               <span className="h-2.5 w-2.5 rounded-full bg-indigo-500"></span> Fab Equipment
             </span>
           </div>
-          <span className="text-slate-500">Click any sector to inspect bundles</span>
+          <span className="text-muted">Click any sector to inspect bundles</span>
         </div>
 
         <div className="overflow-x-auto bg-slate-950 rounded-xl p-4 border border-slate-800">
@@ -148,7 +148,7 @@ export default function YardMapPage() {
           </div>
 
           {zoneBundles.length === 0 ? (
-            <p className="text-xs text-slate-500 font-sans p-4 text-center">No bundles currently stored in sector "{selectedZone}".</p>
+            <p className="text-xs text-muted font-sans p-4 text-center">No bundles currently stored in sector "{selectedZone}".</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {zoneBundles.map(b => (

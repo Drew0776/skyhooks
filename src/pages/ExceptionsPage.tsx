@@ -57,7 +57,7 @@ export default function ExceptionsPage() {
             <div
               key={ex.id}
               className={`bg-slate-900 border rounded-2xl p-5 shadow-xl space-y-3 transition-colors ${
-                isOpen ? 'border-rose-500/30' : 'border-slate-800 opacity-75'
+                isOpen ? 'border-rose-500/30' : 'border-slate-800/60'
               }`}
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -71,14 +71,14 @@ export default function ExceptionsPage() {
                 </div>
 
                 <div className="flex items-center gap-2 text-xxs text-slate-400">
-                  <Clock className="h-3.5 w-3.5 text-slate-500" />
+                  <Clock className="h-3.5 w-3.5 text-muted" />
                   <span>Logged: {new Date(ex.createdAt).toLocaleString()}</span>
                 </div>
               </div>
 
               <div className="space-y-2 text-xs font-sans">
                 <p className="text-slate-300 leading-relaxed">{ex.description}</p>
-                <div className="text-xxs font-mono text-slate-500">
+                <div className="text-xxs font-mono text-muted">
                   Logged by: <strong className="text-slate-300">{ex.loggedBy}</strong>
                 </div>
               </div>
@@ -125,7 +125,7 @@ export default function ExceptionsPage() {
                     <span>RESOLVED</span>
                   </div>
                   <p className="text-slate-400 text-xxs">{ex.resolutionNotes}</p>
-                  <div className="text-[9px] text-slate-500 font-mono">
+                  <div className="text-[9px] text-muted font-mono">
                     Resolved by: {ex.resolvedBy} on {new Date(ex.resolvedAt!).toLocaleString()}
                   </div>
                 </div>

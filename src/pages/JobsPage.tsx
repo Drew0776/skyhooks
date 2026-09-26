@@ -44,7 +44,7 @@ export default function JobsPage() {
             </div>
 
             <div>
-              <h3 className="text-sm font-bold text-white font-sans">{job.customerName}</h3>
+              <h2 className="text-sm font-bold text-white font-sans">{job.customerName}</h2>
               <p className="text-xs text-slate-400 font-sans">{job.projectName}</p>
             </div>
 
@@ -62,7 +62,7 @@ export default function JobsPage() {
               </div>
             </div>
 
-            <div className="text-xxs text-slate-500 flex justify-between pt-2 border-t border-slate-800/80">
+            <div className="text-xxs text-muted flex justify-between pt-2 border-t border-slate-800/80">
               <span>Target Delivery: {job.deliveryDate}</span>
               <span>{(job.totalWeightLbs / 2000).toFixed(1)} Tons</span>
             </div>
@@ -80,8 +80,8 @@ export default function JobsPage() {
 
           <div className="flex items-center gap-2">
             <div className="relative flex-1 sm:w-64">
-              <Search className="h-3.5 w-3.5 text-slate-500 absolute left-3 top-2.5" />
-              <input
+              <Search className="h-3.5 w-3.5 text-muted absolute left-3 top-2.5" />
+              <input aria-label="Search bundles"
                 type="text"
                 placeholder="Search Tag, Job, Location..."
                 value={searchTerm}
@@ -90,7 +90,7 @@ export default function JobsPage() {
               />
             </div>
 
-            <select
+            <select aria-label="Grade"
               value={selectedGrade}
               onChange={e => setSelectedGrade(e.target.value as any)}
               className="bg-slate-950 border border-slate-800 p-1.5 rounded-lg text-xs text-slate-200"
