@@ -6,8 +6,7 @@ import dotenv from 'dotenv';
 import { Bundle, Job, Operator, Exception, ShiftMessage, ActivityEvent, TrailerSize } from './src/types';
 import { INITIAL_BUNDLES, INITIAL_JOBS, INITIAL_OPERATORS, INITIAL_EXCEPTIONS, INITIAL_SHIFT_MESSAGES, INITIAL_ACTIVITY } from './src/seedData';
 import {
-  PLANT_TIME_ZONE, UV_GUIDANCE, UV_WARNING_DAYS, WIND_LOCKOUT_MPH,
-  gradeZoneViolation, isFirstShift, isOutdoorZone, isUvHazard, slottingConflict, slottingViolationMessage
+  PLANT_TIME_ZONE, UV_GUIDANCE, UV_WARNING_DAYS, WIND_LOCKOUT_MPH, isFirstShift, isOutdoorZone, isUvHazard, slottingConflict, slottingViolationMessage, gradePlacementViolation
 } from './src/yardRules';
 
 // Store state in-memory so modifications persist during runtime
@@ -112,6 +111,22 @@ const zoneCoords: Record<string, { cx: number; cy: number; cw: number; ch: numbe
   'Bender-New-Robo': { cx: 601, cy: 422, cw: 135, ch: 65, label: 'NEW-ROBO CNC' },
   'Bender-11-Bender': { cx: 749, cy: 422, cw: 135, ch: 65, label: '11-BENDER' }
 };
+
+/** Known yard zones (the gantry map). Nothing may be moved anywhere else. */
+const isYardZone = (id: string): boolean => Object.prototype.hasOwnProperty.call(zoneCoords, id);
+
+/**
+ * Why `bundle` can't go to `target` (a zone the route accepts, per `allowed`), or null: an unknown or
+ * wrong kind of place, a QC hold, or a grade rule (zoning, or black steel touching coated steel).
+ */
+function moveError(bundle: Bundle, target: string, allowed: (zone: string) => boolean, what: string): string | null {
+  if (!isYardZone(target) || !allowed(target)) return `"${target}" is not ${what}.`;
+  if (bundle.status === 'REJECTED') {
+    return `CRITICAL: Bundle ${bundle.tagId} failed its coating QC audit and is locked in REJECTED status. Crane movement is prohibited until engineering signs off.`;
+  }
+  return gradePlacementViolation(bundle, target, bundles);
+}
+const anyZone = () => true;
 
 interface BackendObstruction {
   zoneId: string;
@@ -354,7 +369,7 @@ Answer only from the live yard data you are given and the yard rules below. If t
 
 Yard rules, enforced by the server:
 - Plant flow: all bar arrives black at Raw-SW; about 98% is epoxy-coated on the coat line, then sheared, bent, loaded and shipped.
-- Grade zoning: black and epoxy are never mixed. Black (uncoated, ASTM A615) bar may only be at Raw-SW, Door-7, Door-8, racks J-19 to J-25 and L-6 to L-10, or a shear, bender or the coat line. Coated epoxy (ASTM A775 or A934) never goes into a black-bar area: not Raw-SW, not racks J-19 to J-25 or L-6 to L-10, and it ships only from Door-1, Door-2, Door-3 or North-End, never Door-7 or Door-8. Shears, benders, the coat line and the other racks, doors and staging areas take either grade.
+- Grade zoning: black and epoxy are never mixed. Black (uncoated, ASTM A615) bar may only be at Raw-SW, Door-7, Door-8, racks J-19 to J-25 and L-6 to L-10, or a shear, bender or the coat line. Coated epoxy (ASTM A775 or A934) never goes into a black-bar area: not Raw-SW, not racks J-19 to J-25 or L-6 to L-10, and it ships only from Door-1, Door-2, Door-3 or North-End, never Door-7 or Door-8. Shears, benders, the coat line and the other racks, doors and staging areas take either grade, but black steel never touches coated steel: a bundle can't go where bar of the other surface already sits, at any stage.
 - Ships-first stacking: a bundle can't be set on a spot holding a bundle that ships sooner.
 - Gantry interlocks: a parked crane on the path blocks a move. Crossing a zone loaded to 60% of its limit (75,000 lb by default) forces slow mode, and 85% blocks the move. ASTM A934 bundles skip slow mode.
 - Hard stops: a bundle that fails coating QC (more than 2% damage) is REJECTED and can't move. Reported wind of ${WIND_LOCKOUT_MPH} mph or more locks out gantry travel.
@@ -463,14 +478,14 @@ app.post('/api/ai/optimize-route', async (req, res) => {
     const obstructions = getBackendRouteObstructions(originId, destinationId, 'ALL', bundles, {}, 8, 3, 30, bundle?.id);
     // The server's own verdict on the drop, so the advice can't green-light a move the interlocks refuse
     const conflict = bundle && slottingConflict(bundle, destinationId, bundles);
-    const zoneIssue = bundle && gradeZoneViolation(bundle.grade, destinationId, bundle.status);
+    const zoneIssue = bundle && gradePlacementViolation(bundle, destinationId, bundles);
     const placement = !bundle ? 'Nothing is carried, so no placement checks apply.'
       : bundle.status === 'REJECTED' ? `BLOCKED: ${bundle.tagId} failed coating QC and is locked in REJECTED status.`
       : zoneIssue ?? (conflict ? slottingViolationMessage(bundle, conflict, destinationId) : 'Passes grade zoning and ships-first stacking.');
     // When the drop is refused, where the bundle could legally go instead
     const legalDrops = bundle && bundle.status !== 'REJECTED' && (zoneIssue || conflict)
       ? Object.keys(zoneCoords).filter(z => z !== originId && z !== destinationId && !z.startsWith('Crane-') &&
-          !gradeZoneViolation(bundle.grade, z, bundle.status) && !slottingConflict(bundle, z, bundles))
+          !gradePlacementViolation(bundle, z, bundles) && !slottingConflict(bundle, z, bundles))
       : null;
 
     const prompt = `Review this gantry crane move.
@@ -607,7 +622,7 @@ app.post('/api/gantry/execute-route', (req, res) => {
       res.status(400).json({ error: 'A gantry position is not a place to set a bundle down.' });
       return;
     }
-    const zoneError = gradeZoneViolation(targetBundle.grade, destinationId, targetBundle.status);
+    const zoneError = gradePlacementViolation(targetBundle, destinationId, bundles);
     if (zoneError) {
       res.status(400).json({ error: zoneError });
       return;
@@ -797,9 +812,9 @@ app.post('/api/bundles/:bundleId/stage', (req, res) => {
     return;
   }
 
-  const zoneError = gradeZoneViolation(bundle.grade, location || 'Coat-Station', bundle.status);
-  if (zoneError) {
-    res.status(400).json({ error: zoneError });
+  const stageError = moveError(bundle, location || 'Coat-Station', z => !z.startsWith('Crane-'), 'a place to stage a bundle');
+  if (stageError) {
+    res.status(400).json({ error: stageError });
     return;
   }
 
@@ -822,16 +837,22 @@ app.post('/api/bundles/:bundleId/pickup', (req, res) => {
     return;
   }
 
-  if (bundle.grade === 'Black' && craneId !== 'Crane-SW') {
+  const crane = craneId || 'Crane-SW';
+  if (bundle.grade === 'Black' && crane !== 'Crane-SW') {
     res.status(400).json({ error: 'CRITICAL: Black (non-epoxy) bar can only be moved in the SW zone (Crane-SW).' });
+    return;
+  }
+  const pickupError = moveError(bundle, crane, z => z.startsWith('Crane-'), 'a gantry crane');
+  if (pickupError) {
+    res.status(400).json({ error: pickupError });
     return;
   }
 
   const oldLoc = bundle.location;
-  bundle.location = craneId || 'Crane-SW';
+  bundle.location = crane;
   bundle.updatedAt = new Date().toISOString();
 
-  logActivity(bundle.tagId, operatorName || 'Crane Operator', 'PICKUP', oldLoc, bundle.location, `Picked up by ${craneId}`);
+  logActivity(bundle.tagId, operatorName || 'Crane Operator', 'PICKUP', oldLoc, bundle.location, `Picked up by ${crane}`);
   notifyClients();
   res.json(bundle);
 });
@@ -845,7 +866,7 @@ app.post('/api/bundles/:bundleId/drop', (req, res) => {
     return;
   }
 
-  if (typeof location !== 'string' || !location || location.startsWith('Crane-')) {
+  if (typeof location !== 'string' || !location || !isYardZone(location) || location.startsWith('Crane-')) {
     res.status(400).json({ error: 'Specify a valid drop location.' });
     return;
   }
@@ -855,7 +876,7 @@ app.post('/api/bundles/:bundleId/drop', (req, res) => {
   }
 
   // Black bar stays SW; epoxy stays out of black-bar racks and SW shipping doors
-  const zoneError = gradeZoneViolation(bundle.grade, location, bundle.status);
+  const zoneError = gradePlacementViolation(bundle, location, bundles);
   if (zoneError) {
     res.status(400).json({ error: zoneError });
     return;
@@ -905,12 +926,19 @@ app.post('/api/bundles/:bundleId/send-to-bender', (req, res) => {
     return;
   }
 
+  const bender = benderId || 'Bender-New-Robo';
+  const benderError = moveError(bundle, bender, z => z.startsWith('Bender-'), 'a bender');
+  if (benderError) {
+    res.status(400).json({ error: benderError });
+    return;
+  }
+
   const oldLoc = bundle.location;
-  bundle.location = benderId || 'Bender-New-Robo';
+  bundle.location = bender;
   bundle.status = 'BENDING';
   bundle.updatedAt = new Date().toISOString();
 
-  logActivity(bundle.tagId, operatorName || 'Shear Operator', 'BENDING_START', oldLoc, bundle.location, `Sent to bender ${benderId}`);
+  logActivity(bundle.tagId, operatorName || 'Shear Operator', 'BENDING_START', oldLoc, bundle.location, `Sent to bender ${bender}`);
   notifyClients();
   res.json(bundle);
 });
@@ -952,6 +980,12 @@ app.post('/api/bundles/:bundleId/force-load', (req, res) => {
       res.status(400).json({ error: 'CRITICAL: Epoxy bar must be shipped from NW/NE doors (Door-1, Door-2, Door-3, North-End).' });
       return;
     }
+  }
+
+  const loadError = moveError(bundle, door || 'Door-1', z => z.startsWith('Door-') || z === 'North-End', 'a shipping door');
+  if (loadError) {
+    res.status(400).json({ error: loadError });
+    return;
   }
 
   const oldLoc = bundle.location;
@@ -998,6 +1032,11 @@ app.post('/api/bundles/bulk-action', (req, res) => {
     if (action === 'LOAD') {
       let door = bundle.grade === 'Black' ? 'Door-7' : 'Door-1';
       let trailerSize: TrailerSize = 'Flatbed';
+      const placeError = moveError(bundle, door, anyZone, 'a yard zone');
+      if (placeError) {
+        errors.push(`${bundle.tagId}: ${placeError}`);
+        continue;
+      }
 
       bundle.location = door;
       bundle.door = door;
@@ -1015,6 +1054,11 @@ app.post('/api/bundles/bulk-action', (req, res) => {
       results.push(bundle);
     } else if (action === 'STAGE') {
       let location = bundle.grade === 'Black' ? 'Raw-SW' : 'Coat-Station';
+      const placeError = moveError(bundle, location, anyZone, 'a yard zone');
+      if (placeError) {
+        errors.push(`${bundle.tagId}: ${placeError}`);
+        continue;
+      }
 
       bundle.location = location;
       bundle.status = 'STAGED';
@@ -1024,6 +1068,11 @@ app.post('/api/bundles/bulk-action', (req, res) => {
       results.push(bundle);
     } else if (action === 'SEND_TO_FABRICATION') {
       let benderId = bundle.grade === 'Black' ? 'Bender-11-Bender' : 'Bender-New-Robo';
+      const placeError = moveError(bundle, benderId, anyZone, 'a yard zone');
+      if (placeError) {
+        errors.push(`${bundle.tagId}: ${placeError}`);
+        continue;
+      }
 
       bundle.location = benderId;
       bundle.status = 'BENDING';

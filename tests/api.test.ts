@@ -178,3 +178,34 @@ test('a coated epoxy bundle cannot be set down in Raw-SW black-bar stock', async
   assert.equal(r.status, 400);
   assert.match(r.json.error, /never go back into Raw-SW/);
 });
+
+test('every move goes to a real place of the right kind, and never mixes black with coated', async () => {
+  for (const [path, body] of [
+    ['/api/bundles/b-1/pickup', { craneId: 'Door-8' }],
+    ['/api/bundles/b-7/stage', { location: 'Moon' }],
+    ['/api/bundles/b-2/force-load', { door: 'Rack J-20' }],
+    ['/api/bundles/b-6/send-to-bender', { benderId: 'Door-7' }],
+    ['/api/bundles/b-1/drop', { location: 'Moon' }]
+  ] as const) {
+    const r = await call('POST', path, body);
+    assert.equal(r.status, 400, path);
+  }
+  // Bender-11-Bender holds black TG-302 (b-5); coated epoxy can't join it
+  const mixed = await call('POST', '/api/bundles/b-6/send-to-bender', { benderId: 'Bender-11-Bender' });
+  assert.equal(mixed.status, 400);
+  assert.match(mixed.json.error, /never touch/);
+});
+
+test('a QC-rejected bundle cannot be moved by any route', async () => {
+  await call('POST', '/api/exceptions', { tagId: 'TG-401', operatorName: 'QC', type: 'Quality Audit', description: 'Scraped', qualityAudit: { coatingDamagePct: 4, damagedFootSection: 'ft 2-3' } });
+  for (const [path, body] of [
+    ['/api/bundles/b-7/stage', { location: 'Coat-Station' }],
+    ['/api/bundles/b-7/pickup', { craneId: 'Crane-NE' }],
+    ['/api/bundles/b-7/send-to-bender', { benderId: 'Bender-New-Robo' }],
+    ['/api/bundles/b-7/force-load', { door: 'Door-2' }]
+  ] as const) {
+    const r = await call('POST', path, body);
+    assert.equal(r.status, 400, path);
+    assert.match(r.json.error, /REJECTED/, path);
+  }
+});

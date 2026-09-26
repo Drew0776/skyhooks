@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatShipDate, gradeZoneViolation, isFirstShift, isUvHazard, plantLocalHour, slottingConflict, WIND_LOCKOUT_MPH } from '../src/yardRules';
+import { formatShipDate, gradeZoneViolation, isFirstShift, isUvHazard, plantLocalHour, slottingConflict, WIND_LOCKOUT_MPH, gradePlacementViolation } from '../src/yardRules';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.parse('2026-06-15T12:00:00Z');
@@ -53,4 +53,13 @@ test('coated epoxy never goes back into Raw-SW; uncoated bar waiting for the coa
   assert.match(gradeZoneViolation('Epoxy', 'Raw-SW', 'COATED') ?? '', /never go back into Raw-SW/);
   assert.match(gradeZoneViolation('Epoxy', 'Raw-SW') ?? '', /never go back into Raw-SW/, 'no status means treat it as coated');
   assert.equal(gradeZoneViolation('Black', 'Raw-SW'), null);
+});
+
+test('black steel never touches coated steel, at any stage', () => {
+  const b = (id: string, grade: 'Black' | 'Epoxy', location: string, status = 'STAGED') => ({ id, tagId: id, grade, location, status });
+  const yard = [b('coated', 'Epoxy', 'Shear-North', 'STAGED'), b('black', 'Black', 'Shear-South', 'STAGED')];
+  assert.match(gradePlacementViolation(b('m', 'Black', 'Raw-SW'), 'Shear-North', yard) ?? '', /never touch/);
+  assert.match(gradePlacementViolation(b('m', 'Epoxy', 'Rack K-1', 'RACKED'), 'Shear-South', yard) ?? '', /never touch/);
+  assert.equal(gradePlacementViolation(b('m', 'Epoxy', 'Rack K-1', 'RACKED'), 'Shear-North', yard), null, 'coated on coated is fine');
+  assert.equal(gradePlacementViolation(b('m', 'Black', 'Raw-SW'), 'Shear-South', yard), null, 'black on black is fine');
 });
