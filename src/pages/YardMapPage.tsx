@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import AiAssistantModal from '../components/AiAssistantModal';
 import { Map, Sparkles, Layers, Shield, Navigation, AlertTriangle, ArrowRight } from 'lucide-react';
+import { clickable } from '../utils/clickable';
 
 export default function YardMapPage() {
   const { bundles, setSelectedBundleForModal, setIsAiModalOpen } = useApp();
@@ -69,7 +70,7 @@ export default function YardMapPage() {
         </div>
 
         <div className="overflow-x-auto bg-slate-950 rounded-xl p-4 border border-slate-800">
-          <svg viewBox="0 0 1000 520" className="w-full h-auto min-w-[700px] text-xs">
+          <svg viewBox="0 0 1000 520" className="w-full h-auto min-w-[700px] text-xs" role="group" aria-label="Yard map: choose a zone to inspect its bundles">
             {/* Sector Background Grid */}
             <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
               <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
@@ -95,7 +96,7 @@ export default function YardMapPage() {
               }
 
               return (
-                <g key={id} onClick={() => setSelectedZone(id)} className="cursor-pointer group">
+                <g key={id} {...clickable(() => setSelectedZone(id))} aria-label={`Inspect ${zone.name}`} aria-pressed={isSelected} className="cursor-pointer group outline-none">
                   <rect
                     x={zone.x}
                     y={zone.y}
@@ -105,7 +106,7 @@ export default function YardMapPage() {
                     fill={fillColor}
                     stroke={strokeColor}
                     strokeWidth={isSelected ? "2.5" : "1.5"}
-                    className="transition-all duration-200 group-hover:stroke-amber-400"
+                    className="transition-all duration-200 group-hover:stroke-amber-400 group-focus-visible:stroke-amber-300 group-focus-visible:[stroke-width:3]"
                   />
                   <text
                     x={zone.x + zone.w / 2}
@@ -154,7 +155,7 @@ export default function YardMapPage() {
               {zoneBundles.map(b => (
                 <div
                   key={b.id}
-                  onClick={() => setSelectedBundleForModal(b)}
+                  {...clickable(() => setSelectedBundleForModal(b))}
                   className="p-3 bg-slate-950 border border-slate-800 hover:border-amber-500/50 rounded-xl text-xs space-y-1 cursor-pointer transition-colors"
                 >
                   <div className="flex items-center justify-between font-bold text-white">

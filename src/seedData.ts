@@ -1,4 +1,5 @@
 import { Bundle, Job, Operator, Exception, ShiftMessage, ActivityEvent } from './types';
+import { isFirstShift } from './yardRules';
 
 // Sample dates are relative to server start, so the schedule never drifts into the past.
 const HOUR = 60 * 60 * 1000;
@@ -233,21 +234,19 @@ export const INITIAL_EXCEPTIONS: Exception[] = [
   }
 ];
 
+// Sample notes are filed under the shift their time falls in (times move with server start),
+// newest first like notes the server adds
+function sampleNote(id: string, hours: number, sender: (shift: ShiftMessage['shift']) => string, content: string): ShiftMessage {
+  const timestamp = hoursAgo(hours);
+  const shift = isFirstShift(timestamp) ? '1st Shift' : '2nd Shift';
+  return { id, sender: sender(shift), content, timestamp, shift };
+}
+
 export const INITIAL_SHIFT_MESSAGES: ShiftMessage[] = [
-  {
-    id: 'SM-1',
-    sender: 'Dave Miller (1st Shift Supervisor)',
-    content: 'All Northwest gantry hoist cables inspected and lubricated. High volume of #5 epoxy bar arriving for the Arena Partners bridge job at 11:00 AM.',
-    timestamp: hoursAgo(4.5),
-    shift: '1st Shift'
-  },
-  {
-    id: 'SM-2',
-    sender: 'Jake Vance (Crane Op)',
-    content: 'Gantry SE rail sensors cleared of steel debris. Smooth travel restored near Door 7.',
-    timestamp: hoursAgo(3.25),
-    shift: '1st Shift'
-  }
+  sampleNote('SM-2', 3.25, () => 'Jake Vance (Crane Op)',
+    'Gantry SE rail sensors cleared of steel debris. Smooth travel restored near Door 7.'),
+  sampleNote('SM-1', 4.5, shift => `Dave Miller (${shift} Supervisor)`,
+    'All Northwest gantry hoist cables inspected and lubricated. High volume of #5 epoxy bar arriving for the Arena Partners bridge job at 11:00 AM.')
 ];
 
 export const INITIAL_ACTIVITY: ActivityEvent[] = [

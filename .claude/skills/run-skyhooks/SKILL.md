@@ -68,7 +68,7 @@ SKYHOOK_NO_LISTEN=1 GEMINI_API_KEY= node --import tsx -e "import('./server.ts').
 
 ```bash
 npm run lint   # tsc --noEmit
-npm test       # 20 tests: yard rules, Markdown renderer, API tests against the real Express app (no Gemini calls)
+npm test       # 22 tests: yard rules, sample data, Markdown renderer, API tests against the real Express app (no Gemini calls)
 ```
 
 ## Gotchas
