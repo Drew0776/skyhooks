@@ -1,5 +1,16 @@
 import { Bundle, Job, Operator, Exception, ShiftMessage, ActivityEvent } from './types';
 
+// Sample dates are relative to server start, so the schedule never drifts into the past.
+const HOUR = 60 * 60 * 1000;
+const hoursAgo = (hours: number): string => new Date(Date.now() - hours * HOUR).toISOString();
+const daysAgo = (days: number): string => hoursAgo(days * 24);
+/** Calendar date `days` from today as YYYY-MM-DD (0 = ships today). */
+const shipDay = (days: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 export const INITIAL_BUNDLES: Bundle[] = [
   {
     id: 'b-1',
@@ -14,8 +25,8 @@ export const INITIAL_BUNDLES: Bundle[] = [
     status: 'RACKED',
     location: 'Rack J-04',
     specification: 'ASTM_A775',
-    shippingDate: '2026-07-25',
-    stagedAt: '2026-07-01T08:00:00Z', // >20 days outdoor
+    shippingDate: shipDay(3),
+    stagedAt: daysAgo(21), // >20 days outdoor
     shapeCode: '00',
     heatNumber: 'H-98841',
     coatingThicknessMils: 10.2,
@@ -34,8 +45,8 @@ export const INITIAL_BUNDLES: Bundle[] = [
     status: 'RACKED',
     location: 'Rack J-12',
     specification: 'ASTM_A775',
-    shippingDate: '2026-07-25',
-    stagedAt: '2026-06-25T10:00:00Z', // 27 days outdoor UV warning!
+    shippingDate: shipDay(3),
+    stagedAt: daysAgo(27), // 27 days outdoor UV warning!
     shapeCode: '11',
     heatNumber: 'H-98841',
     coatingThicknessMils: 11.0,
@@ -54,7 +65,7 @@ export const INITIAL_BUNDLES: Bundle[] = [
     status: 'STAGED',
     location: 'Coat-Station',
     specification: 'ASTM_A934',
-    shippingDate: '2026-07-23',
+    shippingDate: shipDay(1),
     stagedAt: new Date().toISOString(),
     shapeCode: '21',
     heatNumber: 'H-99104',
@@ -74,7 +85,7 @@ export const INITIAL_BUNDLES: Bundle[] = [
     status: 'STAGED',
     location: 'Raw-SW',
     specification: 'ASTM_A615',
-    shippingDate: '2026-07-24',
+    shippingDate: shipDay(2),
     stagedAt: new Date().toISOString(),
     shapeCode: '00',
     heatNumber: 'H-92110',
@@ -94,7 +105,7 @@ export const INITIAL_BUNDLES: Bundle[] = [
     status: 'BENDING',
     location: 'Bender-11-Bender',
     specification: 'ASTM_A615',
-    shippingDate: '2026-07-24',
+    shippingDate: shipDay(2),
     stagedAt: new Date().toISOString(),
     shapeCode: '51',
     heatNumber: 'H-92110',
@@ -116,7 +127,7 @@ export const INITIAL_BUNDLES: Bundle[] = [
     door: 'Door-1',
     trailerSize: 'Flatbed',
     specification: 'ASTM_A775',
-    shippingDate: '2026-07-22',
+    shippingDate: shipDay(0),
     stagedAt: new Date().toISOString(),
     shapeCode: '11',
     heatNumber: 'H-98841',
@@ -136,7 +147,7 @@ export const INITIAL_BUNDLES: Bundle[] = [
     status: 'RACKED',
     location: 'Rack K-1',
     specification: 'ASTM_A775',
-    shippingDate: '2026-07-26',
+    shippingDate: shipDay(4),
     stagedAt: new Date().toISOString(),
     shapeCode: '00',
     heatNumber: 'H-97420',
@@ -153,7 +164,7 @@ export const INITIAL_JOBS: Job[] = [
     totalBundles: 3,
     completedBundles: 1,
     totalWeightLbs: 8637,
-    targetDeliveryDate: '2026-07-25',
+    targetDeliveryDate: shipDay(3),
     status: 'IN_PROGRESS',
     priority: 'HIGH'
   },
@@ -164,7 +175,7 @@ export const INITIAL_JOBS: Job[] = [
     totalBundles: 1,
     completedBundles: 0,
     totalWeightLbs: 16020,
-    targetDeliveryDate: '2026-07-23',
+    targetDeliveryDate: shipDay(1),
     status: 'IN_PROGRESS',
     priority: 'CRITICAL'
   },
@@ -175,7 +186,7 @@ export const INITIAL_JOBS: Job[] = [
     totalBundles: 2,
     completedBundles: 0,
     totalWeightLbs: 63756,
-    targetDeliveryDate: '2026-07-24',
+    targetDeliveryDate: shipDay(2),
     status: 'IN_PROGRESS',
     priority: 'STANDARD'
   },
@@ -186,7 +197,7 @@ export const INITIAL_JOBS: Job[] = [
     totalBundles: 1,
     completedBundles: 0,
     totalWeightLbs: 6008,
-    targetDeliveryDate: '2026-07-26',
+    targetDeliveryDate: shipDay(4),
     status: 'PENDING',
     priority: 'STANDARD'
   }
@@ -202,7 +213,7 @@ export const INITIAL_OPERATORS: Operator[] = [
 export const INITIAL_EXCEPTIONS: Exception[] = [
   {
     id: 'EX-101',
-    timestamp: '2026-07-22T08:15:00Z',
+    timestamp: hoursAgo(3),
     tagId: 'TG-102',
     operatorName: 'Jake Vance',
     type: 'ASTM UV Hazard',
@@ -211,13 +222,13 @@ export const INITIAL_EXCEPTIONS: Exception[] = [
   },
   {
     id: 'EX-102',
-    timestamp: '2026-07-21T14:30:00Z',
+    timestamp: hoursAgo(21),
     tagId: 'TG-301',
     operatorName: 'Marcus Cole',
     type: 'Quality Audit',
     description: 'Initial shear edge burr noticed on #11 carbon bar. Blade clearance recalibrated to 0.012 inches.',
     status: 'RESOLVED',
-    resolvedAt: '2026-07-21T15:00:00Z',
+    resolvedAt: hoursAgo(20.5),
     resolvedBy: 'Marcus Cole'
   }
 ];
@@ -227,14 +238,14 @@ export const INITIAL_SHIFT_MESSAGES: ShiftMessage[] = [
     id: 'SM-1',
     sender: 'Dave Miller (1st Shift Supervisor)',
     content: 'All Northwest gantry hoist cables inspected and lubricated. High volume of #5 epoxy bar arriving for the Arena Partners bridge job at 11:00 AM.',
-    timestamp: '2026-07-22T06:30:00Z',
+    timestamp: hoursAgo(4.5),
     shift: '1st Shift'
   },
   {
     id: 'SM-2',
     sender: 'Jake Vance (Crane Op)',
     content: 'Gantry SE rail sensors cleared of steel debris. Smooth travel restored near Door 7.',
-    timestamp: '2026-07-22T07:45:00Z',
+    timestamp: hoursAgo(3.25),
     shift: '1st Shift'
   }
 ];

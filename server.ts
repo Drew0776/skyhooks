@@ -5,7 +5,10 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { Bundle, Job, Operator, Exception, ShiftMessage, ActivityEvent, TrailerSize } from './src/types';
 import { INITIAL_BUNDLES, INITIAL_JOBS, INITIAL_OPERATORS, INITIAL_EXCEPTIONS, INITIAL_SHIFT_MESSAGES, INITIAL_ACTIVITY } from './src/seedData';
-import { WIND_LOCKOUT_MPH, gradeZoneViolation, isFirstShift, isUvHazard } from './src/yardRules';
+import {
+  PLANT_TIME_ZONE, UV_GUIDANCE, UV_WARNING_DAYS, WIND_LOCKOUT_MPH,
+  gradeZoneViolation, isFirstShift, isOutdoorZone, isUvHazard, slottingConflict, slottingViolationMessage
+} from './src/yardRules';
 
 // Store state in-memory so modifications persist during runtime
 // Deep copies, so runtime changes never mutate the seed data and the yard can be reset
@@ -16,6 +19,9 @@ let exceptions: Exception[] = structuredClone(INITIAL_EXCEPTIONS);
 let shiftMessages: ShiftMessage[] = structuredClone(INITIAL_SHIFT_MESSAGES);
 let activityEvents: ActivityEvent[] = structuredClone(INITIAL_ACTIVITY);
 
+// Recent AI request times per client, for the co-pilot rate limit
+const aiRequestLog = new Map<string, number[]>();
+
 /** Restores the yard to the seed data (used by the API tests). */
 export function resetYardState() {
   bundles = structuredClone(INITIAL_BUNDLES);
@@ -24,6 +30,7 @@ export function resetYardState() {
   exceptions = structuredClone(INITIAL_EXCEPTIONS);
   shiftMessages = structuredClone(INITIAL_SHIFT_MESSAGES);
   activityEvents = structuredClone(INITIAL_ACTIVITY);
+  aiRequestLog.clear();
 }
 
 // Keep the in-memory activity log bounded on long-running servers
@@ -42,6 +49,11 @@ const ai = new GoogleGenAI({
     }
   }
 });
+// Co-pilot model, pinned so answers don't shift under an alias; override with GEMINI_MODEL (e.g. gemini-flash-latest)
+const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+// Each AI call spends Gemini quota, so requests per client and question length are capped
+const AI_REQUESTS_PER_MINUTE = 12;
+const MAX_AI_PROMPT_CHARS = 2000;
 
 // Active Server-Sent Events (SSE) Client Connections
 let sseClients: any[] = [];
@@ -224,6 +236,25 @@ function logActivity(tagId: string, operatorName: string, action: string, fromLo
 const app = express();
 app.use(express.json());
 
+app.use('/api/ai', (req, res, next) => {
+  if (req.method !== 'POST') return next();
+  const now = Date.now();
+  const client = req.ip || 'unknown';
+  const recent = (aiRequestLog.get(client) || []).filter(t => now - t < 60_000);
+  if (recent.length >= AI_REQUESTS_PER_MINUTE) {
+    res.set('Retry-After', String(Math.ceil((recent[0] + 60_000 - now) / 1000)));
+    res.status(429).json({ error: `The AI co-pilot takes up to ${AI_REQUESTS_PER_MINUTE} requests a minute. Try again shortly.` });
+    return;
+  }
+  recent.push(now);
+  aiRequestLog.set(client, recent);
+  // Forget clients that have gone quiet so the map can't grow without bound
+  if (aiRequestLog.size > 1000) {
+    for (const [ip, times] of aiRequestLog) if (now - times[times.length - 1] >= 60_000) aiRequestLog.delete(ip);
+  }
+  next();
+});
+
 const PORT = 3000;
 
 // API routes
@@ -252,6 +283,45 @@ app.get('/api/updates', (req, res) => {
 
 // --- GEMINI AI ENDPOINTS ---
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** What every co-pilot call starts from: the plant clock and the same yard rules the server enforces. */
+export function aiSystemInstruction(now: Date = new Date()): string {
+  const plantNow = now.toLocaleString('en-US', { timeZone: PLANT_TIME_ZONE, dateStyle: 'full', timeStyle: 'short' });
+  return `You are SkyHook AI, the yard logistics co-pilot for Simcote Manufacturing Inc.'s rebar fabrication yard.
+Current plant time: ${plantNow} (${PLANT_TIME_ZONE}), ${isFirstShift(now.toISOString()) ? 'first' : 'second'} shift.
+Answer only from the live yard data you are given and the yard rules below. If the data doesn't answer a question, say so instead of guessing. Don't cite ASTM requirements beyond those listed here.
+
+Yard rules, enforced by the server:
+- Grade zoning: black (uncoated, ASTM A615) bar may only be at Raw-SW, Door-7, Door-8, racks J-19 to J-25 and L-6 to L-10, or a shear, bender or the coat line. Epoxy (ASTM A775 or A934) may not be stored in racks J-19 to J-25 or L-6 to L-10, and ships only from Door-1, Door-2, Door-3 or North-End, never Door-7 or Door-8. Every other zone, Raw-SW included, takes either grade.
+- Ships-first stacking: a bundle can't be set on a spot holding a bundle that ships sooner.
+- Gantry interlocks: a parked crane on the path blocks a move. Crossing a zone loaded to 60% of its limit (75,000 lb by default) forces slow mode, and 85% blocks the move. ASTM A934 bundles skip slow mode.
+- Hard stops: a bundle that fails coating QC (more than 2% damage) is REJECTED and can't move. Reported wind of ${WIND_LOCKOUT_MPH} mph or more locks out gantry travel.
+- UV exposure: epoxy in an outdoor area (racks, doors, Raw-SW, North-End or hanging on a crane) for ${UV_WARNING_DAYS} days or more raises a warning. ${UV_GUIDANCE}
+- First shift runs 6:00 AM to 4:30 PM plant time.
+
+Write for crane operators and floor supervisors: short, structured and actionable, in Markdown.`;
+}
+
+/** A bundle as the co-pilot sees it, with its ship date and outdoor exposure worked out. */
+function aiBundleView(b: Bundle, now: number = Date.now()) {
+  return {
+    tagId: b.tagId,
+    mark: b.mark,
+    jobId: b.jobId,
+    grade: b.grade,
+    specification: b.specification.replace('ASTM_', 'ASTM '),
+    barSize: b.barSize,
+    lengthFt: b.length,
+    weightLb: b.weight,
+    status: b.status,
+    location: b.location,
+    shipsOn: b.shippingDate,
+    daysOutdoors: b.stagedAt && isOutdoorZone(b.location) ? Math.floor((now - new Date(b.stagedAt).getTime()) / DAY_MS) : null,
+    uvWarning: isUvHazard(b, now)
+  };
+}
+
 /** Answers 503 with setup instructions when no Gemini API key is configured. */
 function requireAi(res: express.Response): boolean {
   if (apiKey) return true;
@@ -259,35 +329,37 @@ function requireAi(res: express.Response): boolean {
   return false;
 }
 
+// Whether the co-pilot is set up, and which model it uses
+app.get('/api/ai/status', (req, res) => {
+  res.json({ configured: Boolean(apiKey), model: AI_MODEL });
+});
+
 // 1. Natural Language Yard Query Endpoint
 app.post('/api/ai/query', async (req, res) => {
-  if (!requireAi(res)) return;
   const { prompt } = req.body;
-  if (!prompt || typeof prompt !== 'string') {
+  if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
     res.status(400).json({ error: 'A valid text prompt is required.' });
     return;
   }
+  if (prompt.length > MAX_AI_PROMPT_CHARS) {
+    res.status(400).json({ error: `Questions are limited to ${MAX_AI_PROMPT_CHARS.toLocaleString()} characters.` });
+    return;
+  }
+  if (!requireAi(res)) return;
 
   try {
+    const now = Date.now();
     const yardContext = {
       totalBundles: bundles.length,
-      bundlesSummary: bundles.map(b => ({
-        tagId: b.tagId,
-        mark: b.mark,
-        grade: b.grade,
-        barSize: b.barSize,
-        length: b.length,
-        weight: b.weight,
-        status: b.status,
-        location: b.location,
-        jobId: b.jobId,
-        specification: b.specification
-      })),
-      jobsSummary: jobs.map(j => ({
+      bundles: [...bundles]
+        .sort((a, b) => new Date(a.shippingDate).getTime() - new Date(b.shippingDate).getTime())
+        .map(b => aiBundleView(b, now)),
+      jobs: jobs.map(j => ({
         id: j.id,
         customerName: j.customerName,
         projectName: j.projectName,
-        progress: `${j.completedBundles}/${j.totalBundles}`
+        targetDeliveryDate: j.targetDeliveryDate,
+        bundlesComplete: `${j.completedBundles}/${j.totalBundles}`
       })),
       openExceptions: exceptions.filter(e => e.status === 'OPEN').map(e => ({
         tagId: e.tagId,
@@ -296,19 +368,10 @@ app.post('/api/ai/query', async (req, res) => {
       }))
     };
 
-    const systemInstruction = `You are SkyHook AI, an industrial yard logistics and rebar manufacturing assistant for Simcote Manufacturing Inc.
-    Answer user queries clearly and concisely using the provided real-time plant floor data.
-    Rule checklist:
-    - Epoxy rebar (ASTM A775/A934) goes to NW/NE sectors and Door 1-3/North-End.
-    - Black non-epoxy rebar is strictly restricted to SW sectors (Door 7-8).
-    - Coating damage > 2% triggers automatic ASTM rejection.
-    - Keep answers structured, professional, and directly actionable for crane operators and floor supervisors.`;
-
-    const fullPrompt = `${systemInstruction}\n\n[LIVE YARD DATA]\n${JSON.stringify(yardContext, null, 2)}\n\n[USER QUERY]\n${prompt}`;
-
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: fullPrompt
+      model: AI_MODEL,
+      contents: `[LIVE YARD DATA, bundles soonest-shipping first]\n${JSON.stringify(yardContext, null, 2)}\n\n[QUESTION]\n${prompt}`,
+      config: { systemInstruction: aiSystemInstruction(new Date(now)) }
     });
 
     res.json({ answer: response.text || 'No response generated.' });
@@ -323,32 +386,49 @@ app.post('/api/ai/query', async (req, res) => {
 
 // 2. AI Automated Route Optimization Endpoint
 app.post('/api/ai/optimize-route', async (req, res) => {
-  if (!requireAi(res)) return;
   const { originId, destinationId, bundleTagId } = req.body;
   if (!originId || !destinationId) {
     res.status(400).json({ error: 'Origin and destination sector IDs are required.' });
     return;
   }
+  if (!zoneCoords[originId] || !zoneCoords[destinationId]) {
+    res.status(400).json({ error: `Unknown yard zone: ${zoneCoords[originId] ? destinationId : originId}.` });
+    return;
+  }
+  if (!requireAi(res)) return;
 
   try {
-    const bundle = (bundleTagId && bundles.find(b => b.tagId === bundleTagId)) || bundles.find(b => b.location === originId);
+    const bundle = (bundleTagId && bundles.find(b => b.tagId === bundleTagId && b.location === originId)) || bundles.find(b => b.location === originId);
     const obstructions = getBackendRouteObstructions(originId, destinationId, 'ALL', bundles, {}, 8, 3, 30, bundle?.id);
+    // The server's own verdict on the drop, so the advice can't green-light a move the interlocks refuse
+    const conflict = bundle && slottingConflict(bundle, destinationId, bundles);
+    const zoneIssue = bundle && gradeZoneViolation(bundle.grade, destinationId);
+    const placement = !bundle ? 'Nothing is carried, so no placement checks apply.'
+      : bundle.status === 'REJECTED' ? `BLOCKED: ${bundle.tagId} failed coating QC and is locked in REJECTED status.`
+      : zoneIssue ?? (conflict ? slottingViolationMessage(bundle, conflict, destinationId) : 'Passes grade zoning and ships-first stacking.');
+    // When the drop is refused, where the bundle could legally go instead
+    const legalDrops = bundle && bundle.status !== 'REJECTED' && (zoneIssue || conflict)
+      ? Object.keys(zoneCoords).filter(z => z !== originId && z !== destinationId && !z.startsWith('Crane-') &&
+          !gradeZoneViolation(bundle.grade, z) && !slottingConflict(bundle, z, bundles))
+      : null;
 
-    const prompt = `Analyze this gantry crane transit route for Simcote Manufacturing:
-    Origin: ${originId} (${zoneCoords[originId]?.label || 'Unknown'})
-    Destination: ${destinationId} (${zoneCoords[destinationId]?.label || 'Unknown'})
-    Target Bundle: ${bundle ? `Tag ${bundle.tagId}, ${bundle.grade} steel, #${bundle.barSize}, ${bundle.weight} lbs, Spec: ${bundle.specification}` : 'Empty Trolley Transit'}
-    Detected Technical Obstructions: ${JSON.stringify(obstructions)}
+    const prompt = `Review this gantry crane move.
+Origin: ${originId} (${zoneCoords[originId].label})
+Destination: ${destinationId} (${zoneCoords[destinationId].label})
+Bundle carried: ${bundle ? JSON.stringify(aiBundleView(bundle)) : 'none (empty trolley)'}
+Server placement check: ${placement}${legalDrops ? `\nZones where this bundle may legally be set down instead: ${legalDrops.join(', ') || 'none'}` : ''}
+Route interlock findings: ${obstructions.length ? JSON.stringify(obstructions) : 'none'}
 
-    Provide an operational breakdown with:
-    1. Risk Assessment (CRITICAL, MODERATE, LOW)
-    2. Step-by-Step Operator Guidance for Gantry Positioning
-    3. Material Safety & ASTM Compliance Verification
-    Keep the output concise, formatted in markdown bullet points.`;
+If the placement check or an interlock blocks the move, rate it CRITICAL, tell the operator not to attempt it and say what would make it legal.
+Give, as short Markdown bullet points:
+1. Risk level (CRITICAL, MODERATE or LOW) and why
+2. Step-by-step operator guidance for the gantry
+3. Material handling and compliance notes`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: prompt
+      model: AI_MODEL,
+      contents: prompt,
+      config: { systemInstruction: aiSystemInstruction() }
     });
 
     res.json({
@@ -368,30 +448,29 @@ app.post('/api/ai/optimize-route', async (req, res) => {
 app.post('/api/ai/analyze-logs', async (req, res) => {
   if (!requireAi(res)) return;
   try {
+    const now = Date.now();
     const analysisPayload = {
       recentActivities: activityEvents.slice(0, 15),
       openExceptions: exceptions.filter(e => e.status === 'OPEN'),
       shiftMessages: shiftMessages.slice(0, 10),
-      outdoorEpoxyHazards: bundles.filter(b => {
-        if (b.grade !== 'Epoxy') return false;
-        if (!b.stagedAt) return false;
-        const days = (Date.now() - new Date(b.stagedAt).getTime()) / (1000 * 60 * 60 * 24);
-        return days >= 25;
-      }).map(b => ({ tagId: b.tagId, location: b.location, stagedAt: b.stagedAt }))
+      uvWarnings: bundles.filter(b => isUvHazard(b, now)).map(b => aiBundleView(b, now)),
+      shippingNext48Hours: bundles
+        .filter(b => new Date(b.shippingDate).getTime() - now < 2 * DAY_MS)
+        .map(b => ({ tagId: b.tagId, status: b.status, location: b.location, shipsOn: b.shippingDate }))
     };
 
-    const prompt = `Analyze the following industrial shift logs and floor exceptions for Simcote Manufacturing:
-    ${JSON.stringify(analysisPayload, null, 2)}
+    const prompt = `Review these shift logs and floor exceptions:
+${JSON.stringify(analysisPayload, null, 2)}
 
-    Identify:
-    1. Operational Bottlenecks or Equipment Wear Risks (e.g. shear blade dullness, crane congestion)
-    2. ASTM Compliance & UV Hazard Flag Risks
-    3. Supervisor Key Action Points for Next Shift Handoff
-    Be concise and write in structured industrial bullet points.`;
+Identify, as short Markdown bullet points:
+1. Bottlenecks or equipment wear risks (for example shear blade wear or crane congestion)
+2. Compliance and UV exposure risks
+3. Action points for the next shift handoff`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: prompt
+      model: AI_MODEL,
+      contents: prompt,
+      config: { systemInstruction: aiSystemInstruction(new Date(now)) }
     });
 
     res.json({ analysis: response.text || 'No anomalies detected.' });
@@ -472,16 +551,10 @@ app.post('/api/gantry/execute-route', (req, res) => {
       res.status(400).json({ error: zoneError });
       return;
     }
-    const existingBundles = bundles.filter(b => b.location === destinationId && b.id !== targetBundle.id);
-    if (existingBundles.length > 0) {
-      const newShipping = new Date(targetBundle.shippingDate).getTime();
-      const conflict = existingBundles.find(e => new Date(e.shippingDate).getTime() < newShipping);
-      if (conflict) {
-        res.status(400).json({
-          error: `CRITICAL DYNAMIC SLOTTING VIOLATION: Stacking bundle ${targetBundle.tagId} (ships ${new Date(targetBundle.shippingDate).toLocaleDateString()}) on top of bundle ${conflict.tagId} (ships sooner: ${new Date(conflict.shippingDate).toLocaleDateString()}) at ${destinationId} is blocked to prevent extra crane picks and epoxy scraping.`
-        });
-        return;
-      }
+    const conflict = slottingConflict(targetBundle, destinationId, bundles);
+    if (conflict) {
+      res.status(400).json({ error: slottingViolationMessage(targetBundle, conflict, destinationId) });
+      return;
     }
 
     const oldLoc = targetBundle.location;
@@ -725,16 +798,10 @@ app.post('/api/bundles/:bundleId/drop', (req, res) => {
     return;
   }
 
-  const existingBundles = bundles.filter(b => b.location === location && b.id !== bundle.id);
-  if (existingBundles.length > 0) {
-    const newShipping = new Date(bundle.shippingDate).getTime();
-    const conflict = existingBundles.find(e => new Date(e.shippingDate).getTime() < newShipping);
-    if (conflict) {
-      res.status(400).json({
-        error: `CRITICAL DYNAMIC SLOTTING VIOLATION: Stacking bundle ${bundle.tagId} (ships ${new Date(bundle.shippingDate).toLocaleDateString()}) on top of bundle ${conflict.tagId} (ships sooner: ${new Date(conflict.shippingDate).toLocaleDateString()}) at ${location} is blocked to prevent extra crane picks and epoxy scraping.`
-      });
-      return;
-    }
+  const conflict = slottingConflict(bundle, location, bundles);
+  if (conflict) {
+    res.status(400).json({ error: slottingViolationMessage(bundle, conflict, location) });
+    return;
   }
 
   const oldLoc = bundle.location;

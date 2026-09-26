@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { Bundle } from '../types';
+import { formatShipDate } from '../yardRules';
 import { X, ShieldCheck, Tag, Weight, Ruler, Layers, Calendar, Cpu } from 'lucide-react';
 
 interface BundleDetailModalProps {
@@ -164,7 +165,7 @@ export default function BundleDetailModal({ bundle, onClose }: BundleDetailModal
               <div><strong className="text-slate-200 font-mono">Heat Cert #:</strong> {bundle.heatNumber || 'H-98841'}</div>
               <div><strong className="text-slate-200 font-mono">Coating Thickness:</strong> {bundle.coatingThicknessMils ? `${bundle.coatingThicknessMils} mils` : 'N/A (Black)'}</div>
               <div><strong className="text-slate-200 font-mono">Current Location:</strong> {bundle.location}</div>
-              <div><strong className="text-slate-200 font-mono">Target Delivery:</strong> {bundle.shippingDate}</div>
+              <div><strong className="text-slate-200 font-mono">Target Delivery:</strong> {formatShipDate(bundle.shippingDate)}</div>
             </div>
           </div>
         </div>

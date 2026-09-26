@@ -28,6 +28,28 @@ export function gradeZoneViolation(grade: SteelGrade, location: string): string 
   return null;
 }
 
+/* ---------- Ships-first stacking ---------- */
+
+type Shippable = { id: string; tagId: string; location: string; shippingDate: string };
+
+/** A date-only ISO string ("2026-07-25") shown as that calendar day in local time, not UTC midnight. */
+export function formatShipDate(date: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  return (m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(date)).toLocaleDateString();
+}
+
+/** The soonest-shipping bundle at `destination` that ships before `moving`; setting `moving` on it would bury it. */
+export function slottingConflict<T extends Shippable>(moving: T, destination: string, all: T[]): T | undefined {
+  const movingShip = new Date(moving.shippingDate).getTime();
+  return all
+    .filter(b => b.location === destination && b.id !== moving.id && new Date(b.shippingDate).getTime() < movingShip)
+    .sort((a, b) => new Date(a.shippingDate).getTime() - new Date(b.shippingDate).getTime())[0];
+}
+
+export function slottingViolationMessage(moving: Shippable, conflict: Shippable, destination: string): string {
+  return `CRITICAL DYNAMIC SLOTTING VIOLATION: Stacking bundle ${moving.tagId} (ships ${formatShipDate(moving.shippingDate)}) on top of bundle ${conflict.tagId} (ships sooner: ${formatShipDate(conflict.shippingDate)}) at ${destination} is blocked to prevent extra crane picks and epoxy scraping.`;
+}
+
 /* ---------- Weather ---------- */
 
 /** Reported wind speed at or above which outdoor gantry travel is locked out. */

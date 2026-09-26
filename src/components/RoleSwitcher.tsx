@@ -1,12 +1,12 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { Role } from '../types';
-import { UserCheck, Shield, HardHat, Scissors, Wrench } from 'lucide-react';
+import { Shield, HardHat, Scissors, Wrench, type LucideIcon } from 'lucide-react';
 
 export default function RoleSwitcher() {
   const { currentRole, setCurrentRole } = useApp();
 
-  const roles: { role: Role; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  const roles: { role: Role; label: string; icon: LucideIcon }[] = [
     { role: 'ADMIN', label: 'Supervisor / Admin', icon: Shield },
     { role: 'CRANE_OPERATOR', label: 'Crane Cab Op', icon: HardHat },
     { role: 'SHEAR_OPERATOR', label: 'Shear Operator', icon: Scissors },
@@ -24,14 +24,15 @@ export default function RoleSwitcher() {
               key={r.role}
               onClick={() => setCurrentRole(r.role)}
               title={r.label}
+              aria-label={r.label}
+              aria-pressed={isSelected}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-mono tracking-wider transition-all cursor-pointer ${
                 isSelected
                   ? 'bg-amber-500 text-slate-950 font-bold shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">{r.role.replace('_', ' ')}</span>
+              <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             </button>
           );
         })}
