@@ -47,7 +47,8 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
         const data = await res.json();
         setChatHistory(prev => [...prev, { role: 'assistant', text: data.answer }]);
       } else {
-        setChatHistory(prev => [...prev, { role: 'assistant', text: 'Error contacting AI intelligence service.' }]);
+        const err = await res.json().catch(() => ({}));
+        setChatHistory(prev => [...prev, { role: 'assistant', text: err.error || 'Error contacting AI intelligence service.' }]);
       }
     } catch {
       setChatHistory(prev => [...prev, { role: 'assistant', text: 'Network connection failure.' }]);
@@ -71,7 +72,8 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
         const data = await res.json();
         setRouteResult(data.recommendation);
       } else {
-        setRouteResult('Failed to run route analysis.');
+        const err = await res.json().catch(() => ({}));
+        setRouteResult(err.error || 'Failed to run route analysis.');
       }
     } catch {
       setRouteResult('Network error running route analysis.');
@@ -94,7 +96,8 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
         const data = await res.json();
         setLogAnalysis(data.analysis);
       } else {
-        setLogAnalysis('Failed to analyze shift logs.');
+        const err = await res.json().catch(() => ({}));
+        setLogAnalysis(err.error || 'Failed to analyze shift logs.');
       }
     } catch {
       setLogAnalysis('Network error contacting AI analytics engine.');

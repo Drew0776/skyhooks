@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Bundle } from '../types';
-import { jsPDF } from 'jspdf';
 import { Shuffle, Scissors, Wrench, Download, Play, CheckCircle2, Cpu, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function FloorTriggerPage() {
@@ -104,7 +103,9 @@ export default function FloorTriggerPage() {
     }
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
+    // Load the PDF library only when a report is exported
+    const { jsPDF } = await import('jspdf');
     const doc = new jsPDF();
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
