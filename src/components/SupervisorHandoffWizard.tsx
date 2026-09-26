@@ -132,7 +132,7 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
                   rows={4}
                   value={handoffNotes}
                   onChange={e => setHandoffNotes(e.target.value)}
-                  placeholder="e.g., Northwest gantry lube complete. 20 tons #5 epoxy staged at Shear Center for Mortenson bridge job..."
+                  placeholder="e.g., Northwest gantry lube complete. 20 tons #5 epoxy staged at Shear Center for the bridge overpass job..."
                   className="w-full bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs text-slate-200 font-sans focus:border-amber-500 focus:outline-hidden"
                 />
               </div>
