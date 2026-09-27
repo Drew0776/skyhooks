@@ -293,3 +293,10 @@ test('a QC-rejected bundle cannot be moved by any route', async () => {
   assert.equal(bent.status, 400);
   assert.equal((await call('GET', '/api/bundles')).json.find((b: any) => b.id === 'b-7').status, 'REJECTED');
 });
+
+test('responses turn off type sniffing, and live API data is never cached', async () => {
+  const res = await fetch(base + '/api/bundles');
+  assert.equal(res.headers.get('x-powered-by'), null);
+  assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+});

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { WIND_LOCKOUT_MPH, formatShipDate, gradePlacementViolation, slottingConflict, slottingViolationMessage } from '../yardRules';
+import { WIND_LOCKOUT_MPH, formatShipDate, gradePlacementViolation, gradeZoneViolation, isCoated, mixedSurfaceConflict, slottingConflict, slottingViolationMessage } from '../yardRules';
 import { useApp } from '../context/AppContext';
 import { HardHat, Compass, Anchor, AlertTriangle, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
 
@@ -18,6 +18,19 @@ export default function CraneCabPage() {
   const targetBundle = originBundles.find(b => b.id === carryId) || originBundles[0];
   const windLocked = windSpeed >= WIND_LOCKOUT_MPH;
   const slotConflict = targetBundle ? slottingConflict(targetBundle, destSector, bundles) : undefined;
+  // Why the carried bundle can't go to a drop zone, shown in the menu before the operator picks it
+  const dropNote = (zone: string): string | null => {
+    if (!targetBundle) return null;
+    if (gradeZoneViolation(targetBundle.grade, zone)) return 'wrong zone for this bar';
+    const other = mixedSurfaceConflict(targetBundle, zone, bundles);
+    if (other) return `holds ${isCoated(other) ? 'coated' : 'black'} bar`;
+    const buried = slottingConflict(targetBundle, zone, bundles);
+    return buried ? `${buried.tagId} ships sooner` : null;
+  };
+  const dropOption = (zone: string, label: string) => {
+    const note = dropNote(zone);
+    return <option key={zone} value={zone}>{note ? `${label} (${note})` : label}</option>;
+  };
   // The same zoning and ships-first checks the server runs, shown before the operator commits
   const placementIssue = targetBundle
     ? gradePlacementViolation(targetBundle, destSector, bundles) ?? (slotConflict ? slottingViolationMessage(targetBundle, slotConflict, destSector) : null)
@@ -170,11 +183,11 @@ export default function CraneCabPage() {
                 onChange={e => setDestSector(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-xs text-slate-200"
               >
-                <option value="Door-1">Door-1 (Epoxy Flatbed)</option>
-                <option value="Door-2">Door-2 (Epoxy Flatbed)</option>
-                <option value="Door-7">Door-7 (Black Bar Door)</option>
-                <option value="Rack K-1">Rack K-1</option>
-                <option value="Rack K-2">Rack K-2</option>
+                {dropOption('Door-1', 'Door-1 (Epoxy Flatbed)')}
+                {dropOption('Door-2', 'Door-2 (Epoxy Flatbed)')}
+                {dropOption('Door-7', 'Door-7 (Black Bar Door)')}
+                {dropOption('Rack K-1', 'Rack K-1')}
+                {dropOption('Rack K-2', 'Rack K-2')}
               </select>
             </div>
           </div>

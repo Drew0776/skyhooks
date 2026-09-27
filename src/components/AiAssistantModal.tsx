@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Bot, Sparkles, Send, MapPin, AlertTriangle, ArrowRight, Loader2, X, RefreshCw } from 'lucide-react';
 import AiText from './AiText';
+import { useDialog } from '../utils/useDialog';
 
 interface AiAssistantModalProps {
   onClose: () => void;
@@ -9,6 +10,7 @@ interface AiAssistantModalProps {
 }
 
 export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultDest = '' }: AiAssistantModalProps) {
+  const dialogRef = useDialog<HTMLDivElement>(onClose);
   const [activeTab, setActiveTab] = useState<'chat' | 'route' | 'anomalies'>('chat');
   // Model name and setup state from the server, so the badge matches GEMINI_MODEL
   const [aiStatus, setAiStatus] = useState<{ configured: boolean; model: string } | null>(null);
@@ -113,7 +115,7 @@ export default function AiAssistantModal({ onClose, defaultOrigin = '', defaultD
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn" id="ai-assistant-modal-container">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn" ref={dialogRef} id="ai-assistant-modal-container" role="dialog" aria-modal="true" aria-label="AI co-pilot">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden font-mono">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/60">

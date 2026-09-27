@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { X, CheckCircle, ArrowRight, Shield, AlertTriangle, MessageSquare, Loader2 } from 'lucide-react';
+import { useDialog } from '../utils/useDialog';
 
 interface SupervisorHandoffWizardProps {
   onClose: () => void;
 }
 
 export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWizardProps) {
+  const dialogRef = useDialog<HTMLDivElement>(onClose);
   const { exceptions, showToast, refreshState } = useApp();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [handoffNotes, setHandoffNotes] = useState('');
@@ -46,7 +48,7 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn" id="supervisor-handoff-wizard">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn" ref={dialogRef} id="supervisor-handoff-wizard" role="dialog" aria-modal="true" aria-label="Supervisor shift handoff">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl font-mono">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/60">
