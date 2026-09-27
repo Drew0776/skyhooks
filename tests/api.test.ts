@@ -42,6 +42,8 @@ test('unknown API routes and malformed JSON answer in JSON', async () => {
 });
 
 test('drop enforces grade zoning', async () => {
+  assert.equal((await call('POST', '/api/bundles/b-1/pickup', { craneId: 'Crane-NW' })).status, 200);
+  assert.equal((await call('POST', '/api/bundles/b-4/pickup', { craneId: 'Crane-SW' })).status, 200);
   const epoxyAtSwDoor = await call('POST', '/api/bundles/b-1/drop', { location: 'Door-8' });
   assert.equal(epoxyAtSwDoor.status, 400);
   assert.match(epoxyAtSwDoor.json.error, /NW\/NE doors/);
@@ -83,13 +85,14 @@ test('dashboard metrics answer', async () => {
 
 test('drop refuses to bury a bundle that ships sooner', async () => {
   // TG-201 (b-3) ships the day after TG-103 (b-6), which sits on Door-1
-  const buried = await call('POST', '/api/bundles/b-3/drop', { location: 'Door-1' });
-  assert.equal(buried.status, 400);
-  assert.match(buried.json.error, /SLOTTING VIOLATION.*TG-103/);
-
   const route = await call('POST', '/api/gantry/execute-route', { originId: 'Coat-Station', destinationId: 'Door-1', bundleId: 'b-3', windSpeed: 8 });
   assert.equal(route.status, 400);
   assert.match(route.json.error, /SLOTTING VIOLATION/);
+
+  assert.equal((await call('POST', '/api/bundles/b-3/pickup', { craneId: 'Crane-NW' })).status, 200);
+  const buried = await call('POST', '/api/bundles/b-3/drop', { location: 'Door-1' });
+  assert.equal(buried.status, 400);
+  assert.match(buried.json.error, /SLOTTING VIOLATION.*TG-103/);
 });
 
 test('the crane cab default move (Coat-Station to Door-2) goes through', async () => {
@@ -174,6 +177,7 @@ test('resolving an exception keeps who resolved it and their notes', async () =>
 });
 
 test('a coated epoxy bundle cannot be set down in Raw-SW black-bar stock', async () => {
+  await call('POST', '/api/bundles/b-1/pickup', { craneId: 'Crane-NW' });
   const r = await call('POST', '/api/bundles/b-1/drop', { location: 'Raw-SW' });
   assert.equal(r.status, 400);
   assert.match(r.json.error, /never go back into Raw-SW/);
@@ -232,6 +236,44 @@ test('coating audits need a real percentage and coated bar', async () => {
   assert.match(black.json.error, /no coating to audit/);
   const bundles = (await call('GET', '/api/bundles')).json;
   assert.deepEqual(bundles.filter((b: any) => ['b-1', 'b-4'].includes(b.id)).map((b: any) => b.status), ['RACKED', 'STAGED']);
+});
+
+test('only a load on a crane hook can be set down, one load per hook, and nothing is lifted out of a bender', async () => {
+  // Setting black TG-301 (b-4) straight into an SW rack would skip the SW-crane rule
+  const skipped = await call('POST', '/api/bundles/b-4/drop', { location: 'Rack J-20' });
+  assert.equal(skipped.status, 400);
+  assert.match(skipped.json.error, /not on a crane hook/);
+
+  assert.equal((await call('POST', '/api/bundles/b-1/pickup', { craneId: 'Crane-NE' })).status, 200);
+  const second = await call('POST', '/api/bundles/b-2/pickup', { craneId: 'Crane-NE' });
+  assert.equal(second.status, 400);
+  assert.match(second.json.error, /already has bundle TG-101/);
+
+  // TG-302 (b-5) is mid-bend at Bender-11-Bender
+  const lift = await call('POST', '/api/bundles/b-5/pickup', { craneId: 'Crane-SW' });
+  assert.equal(lift.status, 400);
+  assert.match(lift.json.error, /still in the bender/);
+  const route = await call('POST', '/api/gantry/execute-route', { originId: 'Bender-11-Bender', destinationId: 'Rack L-1', bundleId: 'b-5', windSpeed: 8 });
+  assert.equal(route.status, 400);
+  assert.match(route.json.error, /still in the bender/);
+  assert.equal((await call('POST', '/api/bundles/b-5/mark-bent', {})).status, 200);
+  assert.equal((await call('POST', '/api/bundles/b-5/pickup', { craneId: 'Crane-SW' })).status, 200);
+});
+
+test('exceptions and shift notes stay bounded, and open exceptions outlast resolved ones', async () => {
+  const seedOpen = (await call('GET', '/api/exceptions')).json.filter((e: any) => e.status === 'OPEN').map((e: any) => e.id);
+  for (let i = 0; i < 510; i++) {
+    const ex = await call('POST', '/api/exceptions', { tagId: 'TG-101', operatorName: 'QC', type: 'Misplaced Bar', description: `note ${i}` });
+    if (i < 505) await call('POST', `/api/exceptions/${ex.json.id}/resolve`, { operatorName: 'QC' });
+    await call('POST', '/api/shift-messages', { sender: 'Lead', content: `note ${i}`, shift: 'First Shift' });
+  }
+  const all = (await call('GET', '/api/exceptions')).json;
+  assert.equal(all.length, 500);
+  for (const id of seedOpen) assert.ok(all.some((e: any) => e.id === id), `open ${id} kept`);
+  assert.equal(all.filter((e: any) => e.status === 'OPEN').length, seedOpen.length + 5);
+  const notes = (await call('GET', '/api/shift-messages')).json;
+  assert.equal(notes.length, 500);
+  assert.equal(notes[0].content, 'note 509');
 });
 
 test('a QC-rejected bundle cannot be moved by any route', async () => {

@@ -162,7 +162,7 @@ export default function LandingPage() {
             </button>
           </div>
 
-          <div className="space-y-3 overflow-y-auto max-h-[420px] pr-1">
+          <div className="space-y-3 overflow-y-auto max-h-[420px] pr-1" tabIndex={0} role="region" aria-label="Shift supervisor logs">
             {shiftMessages.map((msg) => (
               <div key={msg.id} className="p-3.5 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1.5">
                 <div className="flex items-center justify-between">

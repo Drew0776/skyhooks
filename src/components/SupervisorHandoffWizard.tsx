@@ -73,7 +73,7 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
                 <span>Active exceptions require supervisor acknowledgment before shift completion.</span>
               </div>
 
-              <div className="space-y-2 max-h-[220px] overflow-y-auto">
+              <div className="space-y-2 max-h-[220px] overflow-y-auto" tabIndex={0} role="region" aria-label="Open exceptions">
                 {openExceptions.length === 0 ? (
                   <div className="p-6 text-center text-emerald-400 text-xs border border-emerald-500/20 bg-emerald-500/5 rounded-xl flex items-center justify-center gap-2">
                     <CheckCircle className="h-4 w-4" />

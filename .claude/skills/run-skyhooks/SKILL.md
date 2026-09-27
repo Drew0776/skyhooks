@@ -68,12 +68,13 @@ SKYHOOK_NO_LISTEN=1 GEMINI_API_KEY= node --import tsx -e "import('./server.ts').
 
 ```bash
 npm run lint   # tsc --noEmit
-npm test       # 34 tests: yard rules, sample data, Markdown renderer, API tests against the real Express app (no Gemini calls)
+npm test       # 36 tests: yard rules, sample data, Markdown renderer, API tests against the real Express app (no Gemini calls)
 ```
 
 ## Gotchas
 
 - **The API checks request bodies.** Text fields must be strings within their length caps (for example `operatorName` 80 and `description` 1,000 characters), numeric fields must be real numbers, and a body over 100 KB gets 413. A `curl` call that sends numbers as strings (`"windSpeed": "30"`) gets a 400 naming the field.
+- **Drops come off a crane hook.** `/api/bundles/:id/drop` refuses a bundle that isn't on a crane, so pick it up first (`crane` does both). Each hook takes one load, and a bundle in a bender can't be lifted until it's marked bent. Smoke checks use a refused `force-load` so they leave the yard untouched.
 - **Port 3000 is hardcoded** (`server.ts`). The sibling Sky-hookz repo uses it too, so run one app at a time. The driver's `start` frees the port first.
 - **Don't stop it with `pkill -f "node dist/server.cjs"`.** The pattern matches the shell running the command and kills it (exit 144). Kill the port's listener instead, as `stop` does.
 - **Never wait for `networkidle`.** `/api/updates` is a Server-Sent Events stream that stays open, so `waitForLoadState('networkidle')` times out after 30s. Wait for an element instead.
