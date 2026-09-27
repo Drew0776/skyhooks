@@ -32,8 +32,18 @@ export function resetYardState() {
   aiRequestLog.clear();
 }
 
-// Keep the in-memory activity log bounded on long-running servers
+// Keep the in-memory lists bounded on long-running servers
 const MAX_ACTIVITY_EVENTS = 500;
+const MAX_EXCEPTIONS = 500;
+const MAX_SHIFT_MESSAGES = 500;
+
+/** Trims the exception list to its cap, dropping the oldest resolved exceptions first so no open one is lost to a resolved one. */
+function trimExceptions() {
+  while (exceptions.length > MAX_EXCEPTIONS) {
+    const oldestResolved = exceptions.map(e => e.status).lastIndexOf('RESOLVED');
+    exceptions.splice(oldestResolved === -1 ? exceptions.length - 1 : oldestResolved, 1);
+  }
+}
 
 // Load GEMINI_API_KEY and friends from .env.local / .env for local runs (existing env vars win)
 dotenv.config({ path: ['.env.local', '.env'], quiet: true });
@@ -119,6 +129,12 @@ const isMapZone = (id: string): boolean => Object.prototype.hasOwnProperty.call(
 function movementBlockedReason(bundle: Bundle): string | null {
   if (bundle.status !== 'REJECTED') return null;
   return `CRITICAL: Bundle ${bundle.tagId} failed its coating QC audit and is locked in REJECTED status. Crane movement is prohibited until engineering signs off.`;
+}
+
+/** Why a crane can't lift `bundle` (a QC hold, or it's still in a bender), or null. */
+function liftBlockedReason(bundle: Bundle): string | null {
+  if (bundle.status === 'BENDING') return `Bundle ${bundle.tagId} is still in the bender. Mark it bent before a crane lifts it.`;
+  return movementBlockedReason(bundle);
 }
 
 /**
@@ -626,7 +642,7 @@ app.post('/api/gantry/execute-route', (req, res) => {
   }
 
   if (targetBundle) {
-    const zoneError = moveError(targetBundle, destinationId, notACrane, 'a place to set a bundle down');
+    const zoneError = liftBlockedReason(targetBundle) ?? moveError(targetBundle, destinationId, notACrane, 'a place to set a bundle down');
     if (zoneError) {
       res.status(400).json({ error: zoneError });
       return;
@@ -768,6 +784,7 @@ app.post('/api/exceptions', (req, res) => {
   };
   
   exceptions.unshift(newEx);
+  trimExceptions();
   notifyClients();
   res.status(201).json(newEx);
 });
@@ -807,6 +824,7 @@ app.post('/api/shift-messages', (req, res) => {
     shift
   };
   shiftMessages.unshift(newMessage);
+  if (shiftMessages.length > MAX_SHIFT_MESSAGES) shiftMessages.length = MAX_SHIFT_MESSAGES;
   notifyClients();
   res.status(201).json(newMessage);
 });
@@ -847,9 +865,11 @@ app.post('/api/bundles/:bundleId/pickup', (req, res) => {
 
   // A crane hook is not storage: grade zoning applies where the bundle is set down, not to the lift
   const crane = craneId || 'Crane-SW';
+  const onHook = bundles.find(b => b.location === crane && b.id !== bundle.id);
   const pickupError = !/^Crane-(NW|NE|SW|SE)$/.test(crane) ? `"${crane}" is not a gantry crane.`
-    : movementBlockedReason(bundle)
-    ?? (bundle.grade === 'Black' && crane !== 'Crane-SW' ? 'CRITICAL: Black (non-epoxy) bar can only be moved in the SW zone (Crane-SW).' : null);
+    : liftBlockedReason(bundle)
+    ?? (bundle.grade === 'Black' && crane !== 'Crane-SW' ? 'CRITICAL: Black (non-epoxy) bar can only be moved in the SW zone (Crane-SW).' : null)
+    ?? (onHook ? `CRANE COLLISION HAZARD: ${crane} already has bundle ${onHook.tagId} on the hook. Drop it first.` : null);
   if (pickupError) {
     res.status(400).json({ error: pickupError });
     return;
@@ -875,6 +895,11 @@ app.post('/api/bundles/:bundleId/drop', (req, res) => {
 
   if (!location) {
     res.status(400).json({ error: 'Specify a valid drop location.' });
+    return;
+  }
+  // Only a load on a crane hook can be set down; anything else would skip the pickup rules (the SW crane for black bar)
+  if (!bundle.location.startsWith('Crane-')) {
+    res.status(400).json({ error: `Bundle ${bundle.tagId} is not on a crane hook. Pick it up first.` });
     return;
   }
   // Black bar stays SW; epoxy stays out of black-bar racks and SW shipping doors; black never touches coated
