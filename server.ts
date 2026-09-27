@@ -274,6 +274,14 @@ function logActivity(tagId: string, operatorName: string, action: string, fromLo
 }
 
 const app = express();
+app.disable('x-powered-by');
+// Every response: browsers must not guess content types. API answers are live yard state, so never cached.
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  if (req.path.startsWith('/api/') && req.path !== '/api/updates') res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use(express.json());
 
 // Every text and number field the API accepts, checked once here so no route can store an object,
