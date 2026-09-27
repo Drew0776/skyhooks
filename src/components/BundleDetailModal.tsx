@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { Bundle } from '../types';
 import { formatShipDate } from '../yardRules';
 import { X, ShieldCheck, Tag, Weight, Ruler, Layers, Calendar, Cpu } from 'lucide-react';
+import { useDialog } from '../utils/useDialog';
 
 interface BundleDetailModalProps {
   bundle: Bundle;
@@ -9,6 +10,7 @@ interface BundleDetailModalProps {
 }
 
 export default function BundleDetailModal({ bundle, onClose }: BundleDetailModalProps) {
+  const dialogRef = useDialog<HTMLDivElement>(onClose);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -93,7 +95,7 @@ export default function BundleDetailModal({ bundle, onClose }: BundleDetailModal
   }, [bundle]);
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn" id="bundle-detail-modal">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn" ref={dialogRef} id="bundle-detail-modal" role="dialog" aria-modal="true" aria-label={`Bundle ${bundle.tagId} details`}>
       <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl font-mono">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/60">
