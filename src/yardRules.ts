@@ -2,33 +2,48 @@
 // so the server's safety checks and what the screens show can't drift apart.
 import type { SteelGrade } from './types';
 
+/* ---------- Locations ---------- */
+
+const YARD_LOCATION_PATTERNS = [
+  /^Rack [A-Z]-\d{1,2}$/,
+  /^Door-\d$/,
+  /^Shear-(North|Center|South)$/,
+  /^Bender-[A-Za-z0-9-]+$/,
+  /^Crane-(NW|NE|SW|SE)$/,
+  /^(Raw-SW|Coat-Station|North-End)$/
+];
+
+/** True for location names the yard uses, including racks and benders not drawn on the gantry map. */
+export const isValidYardLocation = (location: unknown): location is string =>
+  typeof location === 'string' && YARD_LOCATION_PATTERNS.some(p => p.test(location));
+
 /* ---------- Grade zoning ---------- */
 
 const SW_BLACK_RACK = /^Rack (J-(19|2[0-5])|L-([6-9]|10))$/;
 export const SW_SHIPPING_DOORS = ['Door-7', 'Door-8'];
 
 export const isBlackBarRack = (location: string): boolean => SW_BLACK_RACK.test(location);
-export const isProcessingStation = (location: string): boolean =>
-  location === 'Coat-Station' || location.startsWith('Shear-') || location.startsWith('Bender-');
+export const isShearOrBender = (location: string): boolean =>
+  location.startsWith('Shear-') || location.startsWith('Bender-');
 export const isSwBlackStorage = (location: string): boolean =>
   location === 'Raw-SW' || SW_SHIPPING_DOORS.includes(location) || isBlackBarRack(location);
 
 /**
- * Why a bundle of `grade` may not be placed at `location`, or null when it may.
- * Black and epoxy are never mixed. All bar arrives black at Raw-SW and most of it is coated,
- * so epoxy-ordered bar still in RAW status is black steel and may sit at Raw-SW; once coated
- * (any other status, or no status given) it never goes back into a black-bar area.
+ * Why a bundle of `grade` may not be placed at `location`, or null when it may. Black and epoxy are
+ * never mixed: black bar stays SW and never goes through the coat line, and epoxy never goes into
+ * a black-bar area. This build tracks bar from the coat line on, so every epoxy bundle is coated.
  */
-export function gradeZoneViolation(grade: SteelGrade, location: string, status?: string): string | null {
+export function gradeZoneViolation(grade: SteelGrade, location: string): string | null {
   if (grade === 'Black') {
-    if (isSwBlackStorage(location) || isProcessingStation(location)) return null;
-    return 'CRITICAL: Black (non-epoxy) bar is SW-only. Store it at Raw-SW, Door-7/8 or racks J-19 to J-25 and L-6 to L-10, or send it to a shear, bender or the coat line.';
+    if (isSwBlackStorage(location) || isShearOrBender(location)) return null;
+    if (location === 'Coat-Station') return 'CRITICAL: Black (non-epoxy) bar never goes through the epoxy coat line.';
+    return 'CRITICAL: Black (non-epoxy) bar is SW-only. Store it at Raw-SW, Door-7/8 or racks J-19 to J-25 and L-6 to L-10, or send it to a shear or bender.';
   }
   if (isBlackBarRack(location)) {
     return 'CRITICAL: Epoxy bar cannot be stored in Black-bar SW racks.';
   }
-  if (location === 'Raw-SW' && status !== 'RAW') {
-    return 'CRITICAL: Coated epoxy bar must never go back into Raw-SW black-bar stock. Only uncoated bar waiting for the coat line belongs there.';
+  if (location === 'Raw-SW') {
+    return 'CRITICAL: Coated epoxy bar must never go back into Raw-SW black-bar stock.';
   }
   if (SW_SHIPPING_DOORS.includes(location)) {
     return 'CRITICAL: Epoxy bar must be shipped from NW/NE doors (Door-1, Door-2, Door-3, North-End).';
@@ -38,33 +53,23 @@ export function gradeZoneViolation(grade: SteelGrade, location: string, status?:
 
 /* ---------- Black never touches coated ---------- */
 
-type Surfaced = { id: string; tagId: string; grade: SteelGrade; status?: string; location: string };
+type Surfaced = { id: string; tagId: string; grade: SteelGrade; location: string };
 
-/** Whether a bundle's bar is epoxy-coated. This build tracks no raw stage: every epoxy bundle is coated. */
-export function isCoated(b: { grade: SteelGrade; status?: string; location: string }): boolean {
-  return b.grade === 'Epoxy';
-}
-
-/** Whether `moving` will be coated once set down at `destination`. */
-function coatedAfterMove(moving: Surfaced, destination: string): boolean {
-  if (isCoated(moving)) return true;
-  // Bar leaving the coat line for anywhere else has been through it
-  return moving.grade === 'Epoxy' && moving.location === 'Coat-Station' && destination !== 'Coat-Station';
-}
+/** Whether a bundle's bar is epoxy-coated. This build tracks no raw stage, so every epoxy bundle is coated. */
+export const isCoated = (b: { grade: SteelGrade }): boolean => b.grade === 'Epoxy';
 
 /** A bundle at `destination` with the other surface: black steel never touches coated steel, at any stage. */
 export function mixedSurfaceConflict<T extends Surfaced>(moving: T, destination: string, all: T[]): T | undefined {
-  const coated = coatedAfterMove(moving, destination);
-  return all.find(b => b.location === destination && b.id !== moving.id && isCoated(b) !== coated);
+  return all.find(b => b.location === destination && b.id !== moving.id && isCoated(b) !== isCoated(moving));
 }
 
 /** Every grade rule for setting `moving` down at `destination` (zoning, then black never touching coated), or null. */
 export function gradePlacementViolation<T extends Surfaced>(moving: T, destination: string, all: T[]): string | null {
-  const zone = gradeZoneViolation(moving.grade, destination, moving.status);
+  const zone = gradeZoneViolation(moving.grade, destination);
   if (zone) return zone;
   const other = mixedSurfaceConflict(moving, destination, all);
   if (!other) return null;
-  const surface = coatedAfterMove(moving, destination) ? 'coated' : 'black';
+  const surface = isCoated(moving) ? 'coated' : 'black';
   return `CRITICAL: Black and coated steel never touch. ${moving.tagId} is ${surface} bar and ${destination} holds ${surface === 'coated' ? 'black' : 'coated'} bar (${other.tagId}).`;
 }
 

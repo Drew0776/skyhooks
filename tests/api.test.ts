@@ -196,6 +196,44 @@ test('every move goes to a real place of the right kind, and never mixes black w
   assert.match(mixed.json.error, /never touch/);
 });
 
+test('black bar is picked up on the SW crane and stored in SW racks off the map', async () => {
+  const lift = await call('POST', '/api/bundles/b-4/pickup', { craneId: 'Crane-SW' });
+  assert.equal(lift.status, 200, lift.json?.error);
+  assert.equal(lift.json.location, 'Crane-SW');
+  const rack = await call('POST', '/api/bundles/b-4/drop', { location: 'Rack L-6' });
+  assert.equal(rack.status, 200, rack.json?.error);
+  assert.equal(rack.json.status, 'RACKED');
+  const staged = await call('POST', '/api/bundles/b-4/stage', { location: 'Rack J-22' });
+  assert.equal(staged.status, 200, staged.json?.error);
+  const coatLine = await call('POST', '/api/bundles/b-4/stage', { location: 'Coat-Station' });
+  assert.equal(coatLine.status, 400);
+  assert.match(coatLine.json.error, /never goes through the epoxy coat line/);
+});
+
+test('only real map zones are gantry routes', async () => {
+  for (const name of ['constructor', '__proto__', 'toString']) {
+    const r = await call('POST', '/api/gantry/execute-route', { originId: 'Rack J-04', destinationId: name, bundleId: 'b-1' });
+    assert.equal(r.status, 400, name);
+  }
+  const bundles = (await call('GET', '/api/bundles')).json;
+  assert.equal(bundles.find((b: any) => b.id === 'b-1').location, 'Rack J-04');
+});
+
+test('coating audits need a real percentage and coated bar', async () => {
+  const pct = await call('POST', '/api/exceptions', {
+    tagId: 'TG-101', operatorName: 'QC', type: 'Quality Audit', description: 'x', qualityAudit: { coatingDamagePct: '5%', damagedFootSection: 'ft 1' }
+  });
+  assert.equal(pct.status, 400);
+  assert.match(pct.json.error, /percentage between 0 and 100/);
+  const black = await call('POST', '/api/exceptions', {
+    tagId: 'TG-301', operatorName: 'QC', type: 'Quality Audit', description: 'x', qualityAudit: { coatingDamagePct: 5, damagedFootSection: 'ft 1' }
+  });
+  assert.equal(black.status, 400);
+  assert.match(black.json.error, /no coating to audit/);
+  const bundles = (await call('GET', '/api/bundles')).json;
+  assert.deepEqual(bundles.filter((b: any) => ['b-1', 'b-4'].includes(b.id)).map((b: any) => b.status), ['RACKED', 'STAGED']);
+});
+
 test('a QC-rejected bundle cannot be moved by any route', async () => {
   await call('POST', '/api/exceptions', { tagId: 'TG-401', operatorName: 'QC', type: 'Quality Audit', description: 'Scraped', qualityAudit: { coatingDamagePct: 4, damagedFootSection: 'ft 2-3' } });
   for (const [path, body] of [
@@ -208,4 +246,8 @@ test('a QC-rejected bundle cannot be moved by any route', async () => {
     assert.equal(r.status, 400, path);
     assert.match(r.json.error, /REJECTED/, path);
   }
+  // Marking it bent can't lift the hold either: only a bundle in a bender finishes bending
+  const bent = await call('POST', '/api/bundles/b-7/mark-bent', {});
+  assert.equal(bent.status, 400);
+  assert.equal((await call('GET', '/api/bundles')).json.find((b: any) => b.id === 'b-7').status, 'REJECTED');
 });
