@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useLocation, Link } from 'wouter';
+import { useLocation, useRouter, matchRoute, Link } from 'wouter';
 import { useApp } from '../context/AppContext';
 import RoleSwitcher from './RoleSwitcher';
 import AiAssistantModal from './AiAssistantModal';
@@ -7,6 +7,7 @@ import { LayoutDashboard, Shuffle, HardHat, Map, Briefcase, AlertTriangle, Home,
 
 export default function NavBar() {
   const [location] = useLocation();
+  const { parser } = useRouter();
   const { currentRole, isAiModalOpen, setIsAiModalOpen } = useApp();
 
   const navItems = [
@@ -23,9 +24,10 @@ export default function NavBar() {
 
   // Name the browser tab after the screen, so tabs, history and screen readers can tell screens apart
   useEffect(() => {
-    const screen = navItems.find(item => item.href === location)?.label ?? 'Page not found';
+    // Match the way the router does (any letter case, an optional trailing slash), so /JOBS is titled like /jobs
+    const screen = navItems.find(item => matchRoute(parser, item.href, location)[0])?.label ?? 'Page not found';
     document.title = `${screen} · SkyHook Yard Logistics`;
-  }, [location]);
+  }, [location, parser]);
 
   return (
     <>
