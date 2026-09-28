@@ -5,7 +5,7 @@ SkyHook tracks every rebar bundle in a fabrication yard from raw stock to the tr
 ## Features
 
 - **Crane cab** (`/crane`): gantry transit from a pickup zone to a drop zone, with a bundle picker, wind/sway readings and zoning and ships-first warnings before the move is sent. Reported wind of **25 mph or more locks out gantry travel**.
-- **Floor trigger** (`/floor`): stage, bend and export a PDF floor report.
+- **Floor trigger** (`/floor`): stage, bend and export a PDF floor manifest that lists every bundle, with its grade, across as many pages as it needs.
 - **Yard map, jobs, exceptions, dashboard**: inventory, order progress, QC audits, UV exposure and shift throughput.
 - **AI co-pilot**: yard Q&A, route reviews and shift-log checks. Answers come from live yard data (ship dates, outdoor exposure, open exceptions) and the same yard rules the server enforces. Route reviews include the server's verdict on the move and, when it's refused, the legal alternatives.
 - **Shift handoff wizard**: open exceptions, supervisor notes and confirmation for the incoming shift.
@@ -21,6 +21,7 @@ Shared by the server and the screens in [`src/yardRules.ts`](src/yardRules.ts):
 - **Gantry interlocks.** A parked crane on the path blocks a move. Crossing a zone at 60% of capacity forces slow mode, and 85% blocks it. ASTM A934 bundles skip slow mode.
 - **Hard stops.** QC-rejected bundles can't move, and wind of 25 mph or more locks out gantry travel.
 - **Crane handling.** A bundle is set down only from a crane hook, so drops always follow the pickup rules. Each hook carries one load, and nothing is lifted out of a bender until it's marked bent.
+- **The floor only moves bar forward.** Staging, sending to a bender and bulk moves refuse a bundle that's already loaded on a truck (unload it by crane first) or still in a bender (mark it bent first). On the floor screen, a bundle the chosen bender can't take shows why instead of a send button, and a refused action shows the server's reason, read out by screen readers too.
 - **Says when it's offline.** If the server can't be reached, a banner under the nav bar says so within about 10 seconds, and every screen reloads as soon as the server answers again (a restart resets the in-memory yard, so stale state isn't kept).
 - **Bounded history.** The server keeps the newest 500 activity events and shift notes, and 500 exceptions. Resolved exceptions are dropped first, so an open one is never lost to make room.
 - **UV exposure.** Epoxy outdoors for 25 days raises a warning, ahead of the common 30-day covering guidance. ASTM D3963 requires opaque covering once total exposure is expected to exceed two months.

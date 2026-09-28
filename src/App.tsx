@@ -50,9 +50,10 @@ function AppContent() {
         </ScreenErrorBoundary>
       </main>
 
-      {/* Global Toast Notification */}
+      {/* Global Toast Notification: the live region stays on the page so screen readers announce each new message */}
+      <div role="status" aria-live="polite" aria-atomic="true">
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 animate-bounce" id="global-toast-notification">
+        <div key={toast.id} className="fixed bottom-6 right-6 z-50 animate-bounce" id="global-toast-notification">
           <div className={`px-4 py-3 rounded-xl shadow-2xl border font-mono text-xs flex items-center gap-2 ${
             toast.type === 'success'
               ? 'bg-slate-900 border-emerald-500/50 text-emerald-300'
@@ -60,11 +61,12 @@ function AppContent() {
               ? 'bg-slate-900 border-rose-500/50 text-rose-300'
               : 'bg-slate-900 border-amber-500/50 text-amber-300'
           }`}>
-            <span className="h-2 w-2 rounded-full bg-current animate-ping"></span>
-            <span>{toast.message}</span>
+            <span className="h-2 w-2 rounded-full bg-current animate-ping" aria-hidden="true"></span>
+            <span>{toast.type === 'error' && <span className="sr-only">Error: </span>}{toast.message}</span>
           </div>
         </div>
       )}
+      </div>
 
       {/* Global Bundle Detail Modal */}
       {selectedBundleForModal && (

@@ -25,7 +25,8 @@ export default function ExceptionsPage() {
         showToast('Exception hold resolved successfully!', 'success');
         await refreshState();
       } else {
-        showToast('Failed to resolve exception.', 'error');
+        const err = await res.json().catch(() => null);
+        showToast(err?.error || 'Failed to resolve exception.', 'error');
       }
     } catch {
       showToast('Network error resolving exception.', 'error');

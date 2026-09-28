@@ -38,7 +38,8 @@ export default function SupervisorHandoffWizard({ onClose }: SupervisorHandoffWi
         await refreshState();
         onClose();
       } else {
-        showToast('Failed to log handoff note.', 'error');
+        const err = await res.json().catch(() => null);
+        showToast(err?.error || 'Failed to log handoff note.', 'error');
       }
     } catch {
       showToast('Network error submitting handoff.', 'error');

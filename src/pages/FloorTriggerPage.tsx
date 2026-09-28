@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Bundle } from '../types';
+import { buildFloorReport, floorReportFileName } from '../utils/floorReport';
+import { gradePlacementViolation, gradeZoneViolation, isCoated, mixedSurfaceConflict } from '../yardRules';
 import { Shuffle, Scissors, Wrench, Download, Play, CheckCircle2, Cpu, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function FloorTriggerPage() {
@@ -14,6 +16,14 @@ export default function FloorTriggerPage() {
   // Filter bundles eligible for fabrication
   const shearBundles = bundles.filter(b => b.status === 'STAGED' || b.status === 'RACKED');
   const bendingBundles = bundles.filter(b => b.status === 'BENDING');
+
+  const benderName = selectedBender.replace(/^Bender-/, '');
+  // Why a bundle can't go to the chosen bender (the server would refuse it), shown in place of the send button
+  const benderNote = (b: Bundle): string | null => {
+    const other = mixedSurfaceConflict(b, selectedBender, bundles);
+    if (other) return `${benderName} holds ${isCoated(other) ? 'coated' : 'black'} bar (${other.tagId})`;
+    return gradeZoneViolation(b.grade, selectedBender) ? `not for ${b.grade.toLowerCase()} bar` : null;
+  };
 
   // Interactive Mandrel Simulation Animation
   useEffect(() => {
@@ -72,8 +82,8 @@ export default function FloorTriggerPage() {
         showToast(`Bundle queued for bending at ${selectedBender}`, 'success');
         await refreshState();
       } else {
-        const err = await res.json();
-        showToast(err.error || 'Failed to queue bundle', 'error');
+        const err = await res.json().catch(() => null);
+        showToast(err?.error || 'Failed to queue bundle', 'error');
       }
     } catch {
       showToast('Network error queuing bundle.', 'error');
@@ -94,7 +104,8 @@ export default function FloorTriggerPage() {
         showToast('Fabrication complete! Bundle moved to staged queue.', 'success');
         await refreshState();
       } else {
-        showToast('Failed to complete fabrication.', 'error');
+        const err = await res.json().catch(() => null);
+        showToast(err?.error || 'Failed to complete fabrication.', 'error');
       }
     } catch {
       showToast('Network error updating bundle.', 'error');
@@ -104,43 +115,16 @@ export default function FloorTriggerPage() {
   };
 
   const handleExportPDF = async () => {
-    // Load the PDF library only when a report is exported
-    const { jsPDF } = await import('jspdf');
-    const doc = new jsPDF();
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
-    doc.text('SIMCOTE MANUFACTURING - FABRICATION FLOOR MANIFEST', 14, 20);
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
-    doc.text(`Active Station: Sizing Shears & CNC Benders`, 14, 34);
-
-    let y = 46;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Tag ID', 14, y);
-    doc.text('Job ID', 45, y);
-    doc.text('Mark', 80, y);
-    doc.text('Bar Size', 110, y);
-    doc.text('Status', 140, y);
-    doc.text('Location', 170, y);
-
-    doc.line(14, y + 2, 196, y + 2);
-    y += 8;
-
-    doc.setFont('helvetica', 'normal');
-    bundles.forEach((b) => {
-      doc.text(b.tagId, 14, y);
-      doc.text(b.jobId, 45, y);
-      doc.text(b.mark, 80, y);
-      doc.text(`#${b.barSize}`, 110, y);
-      doc.text(b.status, 140, y);
-      doc.text(b.location, 170, y);
-      y += 6;
-    });
-
-    doc.save(`Fabrication_Manifest_${Date.now()}.pdf`);
-    showToast('PDF Report Exported!', 'success');
+    try {
+      // Load the PDF library only when a report is exported
+      const { jsPDF } = await import('jspdf');
+      const doc = buildFloorReport(new jsPDF(), bundles);
+      doc.save(floorReportFileName());
+      showToast('PDF Report Exported!', 'success');
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      showToast('Could not build the PDF report.', 'error');
+    }
   };
 
   const runSimulation = () => {
@@ -280,14 +264,20 @@ export default function FloorTriggerPage() {
                     <span className="text-slate-400 font-sans text-xxs ml-2">Location: {b.location}</span>
                   </div>
 
-                  <button
-                    onClick={() => handleSendToBender(b.id)}
-                    disabled={isProcessing}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded text-xxs transition-colors cursor-pointer flex items-center gap-1 shrink-0"
-                  >
-                    <span>Send to {selectedBender.split('-')[1]}</span>
-                    <ArrowRight className="h-3 w-3" />
-                  </button>
+                  {benderNote(b) ? (
+                    <span className="text-amber-300 text-xxs font-mono text-right shrink-0" title={gradePlacementViolation(b, selectedBender, bundles) || undefined}>
+                      {benderNote(b)}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handleSendToBender(b.id)}
+                      disabled={isProcessing}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded text-xxs transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                    >
+                      <span>Send {b.tagId} to {benderName}</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

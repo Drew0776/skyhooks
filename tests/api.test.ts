@@ -194,8 +194,8 @@ test('every move goes to a real place of the right kind, and never mixes black w
     const r = await call('POST', path, body);
     assert.equal(r.status, 400, path);
   }
-  // Bender-11-Bender holds black TG-302 (b-5); coated epoxy can't join it
-  const mixed = await call('POST', '/api/bundles/b-6/send-to-bender', { benderId: 'Bender-11-Bender' });
+  // Bender-11-Bender holds black TG-302 (b-5); coated epoxy TG-101 (b-1, racked) can't join it
+  const mixed = await call('POST', '/api/bundles/b-1/send-to-bender', { benderId: 'Bender-11-Bender' });
   assert.equal(mixed.status, 400);
   assert.match(mixed.json.error, /never touch/);
 });
@@ -299,4 +299,25 @@ test('responses turn off type sniffing, and live API data is never cached', asyn
   assert.equal(res.headers.get('x-powered-by'), null);
   assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(res.headers.get('cache-control'), 'no-store');
+});
+
+test('the floor only moves bar forward: nothing comes off a truck or out of a bender mid-bend', async () => {
+  const byId = async (id: string) => (await call('GET', '/api/bundles')).json.find((b: any) => b.id === id);
+  // TG-103 (b-6) is loaded at Door-1; TG-302 (b-5) is still in 11-Bender
+  const back = await call('POST', '/api/bundles/b-6/send-to-bender', { benderId: 'Bender-New-Robo' });
+  assert.equal(back.status, 400);
+  assert.match(back.json.error, /already loaded on a truck at Door-1/);
+  assert.equal((await call('POST', '/api/bundles/b-6/stage', { location: 'Coat-Station' })).status, 400);
+  const midBend = await call('POST', '/api/bundles/b-5/stage', { location: 'Raw-SW' });
+  assert.equal(midBend.status, 400);
+  assert.match(midBend.json.error, /still in the bender/);
+
+  // A bulk move takes what it can and says why it left the rest
+  const bulk = await call('POST', '/api/bundles/bulk-action', { bundleIds: ['b-6', 'b-1', 'b-5'], action: 'SEND_TO_FABRICATION' });
+  assert.equal(bulk.status, 200);
+  assert.equal(bulk.json.count, 1);
+  assert.equal(bulk.json.errors.length, 2);
+  assert.equal((await byId('b-6')).location, 'Door-1');
+  assert.equal((await byId('b-1')).status, 'BENDING');
+  assert.equal((await byId('b-5')).location, 'Bender-11-Bender');
 });
