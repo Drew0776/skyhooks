@@ -52,12 +52,12 @@ export default function CraneCabPage() {
         })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (res.ok) {
-        showToast(data.message || 'Route executed successfully!', 'success');
+        showToast(data?.message || 'Route executed successfully!', 'success');
         await refreshState();
       } else {
-        showToast(data.error || 'Gantry Interlock Violation', 'error');
+        showToast(data?.error || 'Gantry Interlock Violation', 'error');
       }
     } catch {
       showToast('Network error executing route.', 'error');

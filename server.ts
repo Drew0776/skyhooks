@@ -138,6 +138,15 @@ function liftBlockedReason(bundle: Bundle): string | null {
 }
 
 /**
+ * Why a floor action (staging, sending to a bender, a bulk move) can't take `bundle`, or null. The floor only
+ * moves bar forward: a bundle already on a truck is unloaded by crane first, and one in a bender is marked bent first.
+ */
+function floorMoveBlockedReason(bundle: Bundle): string | null {
+  if (bundle.status === 'LOADED') return `Bundle ${bundle.tagId} is already loaded on a truck at ${bundle.location}. Unload it with a crane before sending it back to the floor.`;
+  return liftBlockedReason(bundle);
+}
+
+/**
  * Why `bundle` can't be set down at `target` (a place the route accepts, per `allowed`), or null:
  * an unknown or wrong kind of place, a QC hold, or a grade rule (zoning, or black steel touching coated steel).
  */
@@ -846,7 +855,7 @@ app.post('/api/bundles/:bundleId/stage', (req, res) => {
     return;
   }
 
-  const stageError = moveError(bundle, location || 'Coat-Station', notACrane, 'a place to stage a bundle');
+  const stageError = floorMoveBlockedReason(bundle) ?? moveError(bundle, location || 'Coat-Station', notACrane, 'a place to stage a bundle');
   if (stageError) {
     res.status(400).json({ error: stageError });
     return;
@@ -962,7 +971,7 @@ app.post('/api/bundles/:bundleId/send-to-bender', (req, res) => {
   }
 
   const bender = benderId || 'Bender-New-Robo';
-  const benderError = moveError(bundle, bender, z => z.startsWith('Bender-'), 'a bender');
+  const benderError = floorMoveBlockedReason(bundle) ?? moveError(bundle, bender, z => z.startsWith('Bender-'), 'a bender');
   if (benderError) {
     res.status(400).json({ error: benderError });
     return;
@@ -1061,7 +1070,9 @@ app.post('/api/bundles/bulk-action', (req, res) => {
     if (action === 'LOAD') {
       let door = bundle.grade === 'Black' ? 'Door-7' : 'Door-1';
       let trailerSize: TrailerSize = 'Flatbed';
-      const placeError = moveError(bundle, door, anyZone, 'a yard zone');
+      const placeError = bundle.status === 'LOADED'
+        ? `already loaded at ${bundle.location}.`
+        : moveError(bundle, door, anyZone, 'a yard zone');
       if (placeError) {
         errors.push(`${bundle.tagId}: ${placeError}`);
         continue;
@@ -1083,7 +1094,7 @@ app.post('/api/bundles/bulk-action', (req, res) => {
       results.push(bundle);
     } else if (action === 'STAGE') {
       let location = bundle.grade === 'Black' ? 'Raw-SW' : 'Coat-Station';
-      const placeError = moveError(bundle, location, anyZone, 'a yard zone');
+      const placeError = floorMoveBlockedReason(bundle) ?? moveError(bundle, location, anyZone, 'a yard zone');
       if (placeError) {
         errors.push(`${bundle.tagId}: ${placeError}`);
         continue;
@@ -1097,7 +1108,7 @@ app.post('/api/bundles/bulk-action', (req, res) => {
       results.push(bundle);
     } else if (action === 'SEND_TO_FABRICATION') {
       let benderId = bundle.grade === 'Black' ? 'Bender-11-Bender' : 'Bender-New-Robo';
-      const placeError = moveError(bundle, benderId, anyZone, 'a yard zone');
+      const placeError = floorMoveBlockedReason(bundle) ?? moveError(bundle, benderId, anyZone, 'a yard zone');
       if (placeError) {
         errors.push(`${bundle.tagId}: ${placeError}`);
         continue;
