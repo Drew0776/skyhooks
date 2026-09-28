@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Bundle, Job, Operator, Exception, ShiftMessage, ActivityEvent, Role } from '../types';
+import { RECONNECTED_EVENT } from '../components/ConnectionBanner';
 
 interface ToastInfo {
   id: string;
@@ -71,6 +72,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchAllData();
+    // After the server was unreachable (a restart resets the yard), reload everything rather than keep stale state
+    window.addEventListener(RECONNECTED_EVENT, fetchAllData);
 
     // Setup Server-Sent Events (SSE) for real-time state synchronization
     const eventSource = new EventSource('/api/updates');
@@ -92,6 +95,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     return () => {
       eventSource.close();
+      window.removeEventListener(RECONNECTED_EVENT, fetchAllData);
     };
   }, []);
 

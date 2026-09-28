@@ -21,6 +21,7 @@ Shared by the server and the screens in [`src/yardRules.ts`](src/yardRules.ts):
 - **Gantry interlocks.** A parked crane on the path blocks a move. Crossing a zone at 60% of capacity forces slow mode, and 85% blocks it. ASTM A934 bundles skip slow mode.
 - **Hard stops.** QC-rejected bundles can't move, and wind of 25 mph or more locks out gantry travel.
 - **Crane handling.** A bundle is set down only from a crane hook, so drops always follow the pickup rules. Each hook carries one load, and nothing is lifted out of a bender until it's marked bent.
+- **Says when it's offline.** If the server can't be reached, a banner under the nav bar says so within about 10 seconds, and every screen reloads as soon as the server answers again (a restart resets the in-memory yard, so stale state isn't kept).
 - **Bounded history.** The server keeps the newest 500 activity events and shift notes, and 500 exceptions. Resolved exceptions are dropped first, so an open one is never lost to make room.
 - **UV exposure.** Epoxy outdoors for 25 days raises a warning, ahead of the common 30-day covering guidance. ASTM D3963 requires opaque covering once total exposure is expected to exceed two months.
 - **Shifts.** First shift runs 6:00 AM to 4:30 PM plant time (America/Chicago).
