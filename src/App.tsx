@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import { Route, Switch, useLocation } from 'wouter';
 import { AppProvider, useApp } from './context/AppContext';
 import NavBar from './components/NavBar';
+import ConnectionBanner from './components/ConnectionBanner';
 import BundleDetailModal from './components/BundleDetailModal';
 import ScreenErrorBoundary from './components/ScreenErrorBoundary';
 
@@ -30,6 +31,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-amber-500 selection:text-slate-950 flex flex-col antialiased">
       <NavBar />
+      <ConnectionBanner />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
         <ScreenErrorBoundary key={location}>
